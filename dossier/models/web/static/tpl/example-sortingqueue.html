@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sorting Queue example</title>
+
+  <link rel="stylesheet" media="screen"
+        href="/dossier/v1/static/deps/SortingQueue.css" />
+  <script src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+  <script src="/dossier/v1/static/deps/SortingQueue.js"></script>
+  <script src="/dossier/v1/static/deps/Dossier.js"></script>
+
+  <!-- Make the items div not take up the whole page. -->
+  <style type="text/css">
+    #items {
+      width: 800px;
+      margin: 0 auto;
+    }
+
+    .sd-text-item-content {
+      height: 150px;
+      overflow-y: auto;
+    }
+  </style>
+
+  <script type="text/javascript">
+    var qitems;
+    var squeue;
+    $(document).ready(function() {
+      var api = new DossierJS.API();
+      api.fcRandomGet().done(function(cobj) {
+        var content_id = cobj[0],
+            fc = cobj[1];
+        $('#query').text(fc.value('NAME'));
+
+        var qitems = new DossierJS.SortingQueueItems(
+            api, 'index_scan', content_id, 'unknown');
+
+        squeue = new SortingQueue.Instance({
+            nodes: { items: $('#items') },
+            visibleItems: 4,
+        }, qitems.callbacks());
+        squeue.initialise();
+      });
+    });
+  </script>
+</head>
+<body>
+  <p>Random query set to: <strong id="query"></strong></p>
+  <div id="items"></div>
+</body>
+</html>

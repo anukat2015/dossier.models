@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+if [ $# != 1 ]; then
+  echo "Usage: $(basename $0) local-path-to-sortingdesk-checkout" >&2
+  exit 1
+fi
+
+sdrepo="$1"
+
+dest="./dossier/models/web/static/"
+cp "$sdrepo/examples/css/theme-sorting_desk-default.css" "$dest"
+cp "$sdrepo/src/api/api-sorting_desk-live.js" "$dest"
+cp "$sdrepo/examples/js/sorting_desk-live.js" "$dest"
+cp "$sdrepo/src/SortingDesk/SortingDesk.js" "$dest"
+cp "$sdrepo/lib/jquery-2.1.1.min.js" "$dest/lib/"
+cp "$sdrepo/lib/require-2.1.14.min.js" "$dest/lib/"
+

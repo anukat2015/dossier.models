@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sorting Desk</title>
+
+  <link rel="stylesheet" media="screen"
+        href="/static/theme-sorting_desk-default.css" />
+
+  <script type="text/javascript">
+  DOSSIER_STACK_API_URL = '';
+  </script>
+
+  <script type="text/javascript"
+          src="/static/lib/require-2.1.14.min.js"></script>
+
+  <!-- Main initialisation logic -->
+  <script type="text/javascript">
+  require.config( {
+    baseUrl: '/static/',
+    paths: {
+      "main": "sorting_desk-live",
+      "SortingDesk": "SortingDesk",
+      "SortingQueue": "/dossier/v1/static/deps/SortingQueue",
+      "DossierJS": "/dossier/v1/static/deps/Dossier",
+      "API-SortingDesk": "api-sorting_desk-live",
+      "jquery": "lib/jquery-2.1.1.min"
+    }
+  } );
+
+  require(["main"]);
+  </script>
+</head>
+<body>
+  <div id="search-engine">
+    <select></select>
+  </div>
+  <div id="wrapper-outer">
+    <div id="wrapper-bins" class="wrapper">
+      <div id="bins">
+      </div>
+    </div>
+    <div id="wrapper-items" class="wrapper">
+      <div id="items">
+      </div>
+    </div>
+  </div>
+  <div id="button-dismiss" class="sd-button-dismiss">X</div>
+  <div id="loading">Loading...</div>
+</body>
+</html>
