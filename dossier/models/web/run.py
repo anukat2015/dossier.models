@@ -55,6 +55,7 @@ def add_routes(app):
         An existing feature collection with id ``content_id`` is
         overwritten.
         '''
+        tfidf = tfidf or None
         if request.headers.get('content-type', '').startswith('text/html'):
             url = urllib.unquote(cid.split('|', 1)[1])
             fc = create_fc_from_html(url, request.body.getvalue(),
@@ -90,7 +91,7 @@ def get_application():
     args, application = web.get_application(routes=[add_routes],
                                             search_engines=engines)
 
-    tfidf_model = None
+    tfidf_model = False
     try:
         tfidf_path = yakonfig.get_global_config('dossier.models')['tfidf_path']
         tfidf_model = models.TfidfModel.load(tfidf_path)
