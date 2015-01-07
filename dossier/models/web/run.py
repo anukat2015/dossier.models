@@ -36,7 +36,7 @@ def add_routes(app):
     def v1_static(name):
         return bottle.static_file(name, root=web_static_path)
 
-    @app.put('/dossier/v1/feature-collection/<cid>')
+    @app.put('/dossier/v1/feature-collection/<cid>', json=True)
     def v1_fc_put(request, response, store, tfidf, cid):
         '''Store a single feature collection.
 
@@ -49,28 +49,29 @@ def add_routes(app):
 
         Alternatively, if the request's ``Content-type`` is
         ``text/html``, then a feature collection is generated from the
-        HTML.
+        HTML. The generated feature collection is then returned as a
+        JSON payload.
 
-        This endpoint returns status ``201`` upon successful storage.
-        An existing feature collection with id ``content_id`` is
-        overwritten.
+        This endpoint returns status ``201`` upon successful
+        storage otherwise. An existing feature collection with id
+        ``content_id`` is overwritten.
         '''
         tfidf = tfidf or None
         if request.headers.get('content-type', '').startswith('text/html'):
             url = urllib.unquote(cid.split('|', 1)[1])
-            fc = create_fc_from_html(url, request.body.getvalue(),
-                                     tfidf=tfidf)
+            fc = create_fc_from_html(url, request.body.read(), tfidf=tfidf)
             logger.info('created FC for "%r": %r', cid, fc)
             store.put([(cid, fc)])
-            response.status = 201
+            return routes.fc_to_json(fc)
         else:
             return routes.v1_fc_put(request, response, store, cid)
 
 
 def create_fc_from_html(url, html, tfidf=None):
-    soup = BeautifulSoup(html)
-    title = soup.find('title').get_text().decode('utf-8')
-    fc = etl.html_to_fc(html, url=url, other_features={
+    soup = BeautifulSoup(unicode(html, 'utf-8'))
+    title = soup.find('title').get_text()
+    body = soup.find('body').prettify()
+    fc = etl.html_to_fc(body, url=url, other_features={
         u'title': title,
         u'titleBow': StringCounter(title.split()),
     })
