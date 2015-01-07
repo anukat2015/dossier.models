@@ -48,7 +48,6 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     body = cleanse(fc[u'meta_clean_visible'])
     nps = sip.noun_phrases(body)
     fc[u'bowNP'] = StringCounter(nps)
-    fc[u'bow'] = StringCounter(html.split())
     return fc
 
 
