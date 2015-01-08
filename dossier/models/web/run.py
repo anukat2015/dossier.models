@@ -6,8 +6,11 @@ import urllib
 
 from bs4 import BeautifulSoup
 import bottle
-from gensim import models
-import requests
+try:
+    from gensim import models
+    TFIDF = True
+except ImportError:
+    TFIDF = False
 
 from dossier.fc import StringCounter
 from dossier.models import etl
@@ -93,11 +96,13 @@ def get_application():
                                             search_engines=engines)
 
     tfidf_model = False
-    try:
-        tfidf_path = yakonfig.get_global_config('dossier.models')['tfidf_path']
-        tfidf_model = models.TfidfModel.load(tfidf_path)
-    except KeyError:
-        pass
+    if TFIDF:
+        try:
+            conf = yakonfig.get_global_config('dossier.models')
+            tfidf_path = conf['tfidf_path']
+            tfidf_model = models.TfidfModel.load(tfidf_path)
+        except KeyError:
+            pass
     application.install(
         config.create_injector('tfidf', lambda: tfidf_model))
     return args, application

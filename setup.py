@@ -36,7 +36,6 @@ setup(
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
         'dossier.web >= 0.5.0',
-        'gensim',
         'happybase',
         'joblib',
         'nltk',
@@ -49,6 +48,9 @@ setup(
         'pytest',
         'pytest-diffeo >= 0.1.4',
     ],
+    extras_require={
+        'tfidf': ['gensim'],
+    },
     include_package_data=True,
     zip_safe=False,
     entry_points={
