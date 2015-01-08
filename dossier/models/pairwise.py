@@ -262,7 +262,8 @@ class PairwiseFeatureLearner(object):
         # as part of the candidate set.
         return filter(lambda (_, fc): fc is not None, self.store.get_many(ids))
 
-    def canopy_ids(self, limit_hint=1000):
+    def canopy_ids(self, limit_hint=None):
+        limit_hint = limit_hint or 1000
         # TODO: It seems like this should pre-emptively discard content
         # ids that have already participated in a *direct* label with
         # the query. But I think this is a premature optimization since
