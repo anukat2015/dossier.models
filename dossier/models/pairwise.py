@@ -320,8 +320,18 @@ class PairwiseFeatureLearner(object):
         pos_component = streaming_sample(
             pos_component, limit, limit=hard_limit(limit))
         pos_expanded = expand_labels(pos_component)
-        negatives = self.label_store.negative_inference(
-            self.query_content_id)
+        logger.info('Getting negative labels')
+
+        # It turns out that inferring negative labels actually takes quite
+        # a bit of time. I think this is because we are being a bit overeager
+        # in how we're adding negative labels in the first place.
+        # We should revisit this when negative labels are applied more
+        # judiciously.
+        # negatives = self.label_store.negative_inference(
+            # self.query_content_id)
+        negatives = ifilter(
+            lambda l: l.value == CorefValue.Negative,
+            self.label_store.directly_connected(self.query_content_id))
 
         # This tomfoolery makes sure that if there are positive and
         # negative labels, then we'll grab at least one of each.
