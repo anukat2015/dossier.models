@@ -248,7 +248,7 @@ class PairwiseFeatureLearner(object):
         # as part of the candidate set.
         return filter(lambda (_, fc): fc is not None, self.store.get_many(ids))
 
-    def canopy_ids(self):
+    def canopy_ids(self, limit_hint=1000):
         # TODO: It seems like this should pre-emptively discard content
         # ids that have already participated in a *direct* label with
         # the query. But I think this is a premature optimization since
@@ -256,14 +256,47 @@ class PairwiseFeatureLearner(object):
         # would mean fewer kernel computations.)
         blacklist = {self.query_content_id}
         cids = set()
-        for idx_name in self.store.index_names():
+
+        # OK, so it turns out that a naive index scan is pretty inflexible and
+        # arbitrary. The issue is that in a big enough data set, the first
+        # index scan will probably exhaust all of our result set, which
+        # means result sets will never see any variety.
+        #
+        # Instead, we'll try to sample from each index in small batch sizes.
+        # This is a heuristic; not a principled approach. ---AG
+        index_names = self.store.index_names()
+        batch_size = limit_hint / 10
+        progress = {}  # idx, name |--> last end
+        # When `progress` is empty, the following loop will terminate.
+        # An index is removed from `progress` when it no longer produces
+        # results.
+        for idx_name in index_names:
             for name in self.query_fc.get(idx_name, {}):
-                logger.info('index scanning for "%s" (content id: %s)',
-                            name, self.query_content_id)
-                for cid in self.store.index_scan(idx_name, name):
-                    if cid not in cids and cid not in blacklist:
-                        cids.add(cid)
-                        yield cid
+                progress[(idx_name, name)] = 0
+
+        logger.info('starting index scan (query content id: %s)',
+                    self.query_content_id)
+        while len(progress) > 0:
+            for idx_name in index_names:
+                for name in self.query_fc.get(idx_name, {}):
+                    key = (idx_name, name)
+                    if key not in progress:
+                        continue
+                    logger.info('[StringCounter index: %s] scanning for "%s"',
+                                idx_name, name)
+                    scanner = self.store.index_scan(idx_name, name)
+                    progressed = 0
+                    for cid in islice(scanner, progress[key], None):
+                        if progressed >= batch_size:
+                            break
+                        if cid not in cids and cid not in blacklist:
+                            cids.add(cid)
+                            progressed += 1
+                            yield cid
+                    if progressed == 0:
+                        progress.pop(key)
+                    else:
+                        progress[key] += progressed
 
     def labels_from_query(self, limit=None):
         '''ContentId -> [Label]'''
