@@ -174,10 +174,13 @@ class PairwiseFeatureLearner(object):
         # Get labels from the database and translate them to the form
         # `[{-1, 1}, i, j]` where `i, j` are indices into the list
         # `content_objs`, which has type `[(content_id, FeatureCollection)]`.
+        logger.info('Fetching labels...')
         labels = list(self.labels_from_query(limit=self.label_limit))
+        logger.info('Fetching FCs from labels...')
         content_objs = self.content_objs_from_labels(labels)
         indexed_labels = labels_to_indexed_coref_values(content_objs, labels)
 
+        logger.info('Training...')
         model = self.train([fc for _, fc in content_objs], indexed_labels)
         if model is None:
             logger.info(
@@ -311,6 +314,7 @@ class PairwiseFeatureLearner(object):
 
     def labels_from_query(self, limit=None):
         '''ContentId -> [Label]'''
+        logger.info('Getting connected component')
         pos_component = self.label_store.connected_component(
             self.query_content_id)
         pos_component = streaming_sample(
