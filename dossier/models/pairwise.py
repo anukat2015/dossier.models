@@ -14,7 +14,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.linear_model import LogisticRegression
 
 from dossier.label import CorefValue, expand_labels
-from dossier.web import streaming_sample
+from dossier.web import engine_index_scan, streaming_sample
 
 
 logger = logging.getLogger(__name__)
@@ -68,8 +68,14 @@ def create_search_engine(store, label_store, similar=True):
         learner = PairwiseFeatureLearner(
             store, label_store, content_id,
             canopy_limit=canopy_limit, label_limit=label_limit)
-        candidate_probs = sorted(
-            learner.probabilities(), reverse=similar, key=itget(1))
+        try:
+            candidate_probs = sorted(
+                learner.probabilities(), reverse=similar, key=itget(1))
+        except InsufficientTrainingData:
+            logger.info('Falling back to plain index scan...')
+            index_scan = engine_index_scan(store)
+            return index_scan(content_id, filter_pred, limit)
+
         ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): (cid, fc, {'probability': p}),
                        ranked)
@@ -77,6 +83,10 @@ def create_search_engine(store, label_store, similar=True):
             'results': list(islice(results, limit)),
         }
     return _
+
+
+class InsufficientTrainingData(Exception):
+    pass
 
 
 class PairwiseFeatureLearner(object):
@@ -173,7 +183,7 @@ class PairwiseFeatureLearner(object):
             logger.info(
                 'Could not train model: insufficient training data. '
                 '(query content id: %s)', self.query_content_id)
-            return []
+            raise InsufficientTrainingData
 
         feature_names, classifier, transformer = model
         return zip(candidates, self.classify(
@@ -243,7 +253,8 @@ class PairwiseFeatureLearner(object):
         return classifier.predict_proba(phi_dicts)[:,1]
 
     def canopy(self, limit=None):
-        ids = streaming_sample(self.canopy_ids(), limit, hard_limit(limit))
+        ids = streaming_sample(self.canopy_ids(limit_hint=hard_limit(limit)),
+                               limit, hard_limit(limit))
         # I don't think it ever makes sense to include the query
         # as part of the candidate set.
         return filter(lambda (_, fc): fc is not None, self.store.get_many(ids))
