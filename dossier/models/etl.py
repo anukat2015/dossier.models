@@ -1,3 +1,16 @@
+'''
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2012-2014 Diffeo, Inc.
+
+Generate feature collections with your data
+===========================================
+This library ships with a command line program ``dossier.etl`` which
+provides a rudimentary pipeline for transforming data from your database
+to feature collections managed by :mod:`dossier.store`.
+
+(Currently, ``dossier.etl`` is hard-coded to support a specific HBase
+database, but it will be generalized as part of future work.)
+'''
 from __future__ import absolute_import, division, print_function
 
 import argparse

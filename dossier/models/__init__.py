@@ -5,10 +5,10 @@
 ``dossier.models`` provides search engines and a :mod:`dossier.web`
 application for working with active learning.
 
-.. autofunction:: similar
-.. autofunction:: dissimilar
-.. autoclass:: PairwiseFeatureLearner
-
+.. automodule:: dossier.models.web.run
+.. automodule:: dossier.models.pairwise
+.. automodule:: dossier.models.features
+.. automodule:: dossier.models.etl
 '''
 from dossier.models import features
 from dossier.models.pairwise import PairwiseFeatureLearner, similar, dissimilar

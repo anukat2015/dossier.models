@@ -5,13 +5,14 @@ from nltk.corpus import stopwords
 
 
 def noun_phrases(text):
-    '''Generate a bag of stemmed and normalized noun phrases from
-    `text. This is built around python's nltk library for getting
-    Noun Phrases (NPs). This is all documented in the NLTK Book
+    '''Generate a bag of normalized stemmed noun phrases from ``text``.
+
+    This is built around python's nltk library for getting Noun
+    Phrases (NPs). This is all documented in the NLTK Book
     http://www.nltk.org/book/ch03.html and blog posts that cite the
     book.
 
-    :returns: list of phrase strings with spaces replaced by ``_``.
+    :rtype: list of phrase strings with spaces replaced by ``_``.
     '''
     ## from NLTK Book:
     sentence_re = r'''(?x)      # set flag to allow verbose regexps
