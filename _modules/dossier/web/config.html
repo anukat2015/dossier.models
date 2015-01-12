@@ -1,0 +1,290 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.web.config &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.web.config</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.web.config</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+<span class="kn">import</span> <span class="nn">bottle</span>
+
+<span class="kn">from</span> <span class="nn">dossier.label</span> <span class="kn">import</span> <span class="n">LabelStore</span>
+<span class="kn">from</span> <span class="nn">dossier.store</span> <span class="kn">import</span> <span class="n">Store</span>
+<span class="kn">import</span> <span class="nn">kvlayer</span>
+<span class="kn">import</span> <span class="nn">yakonfig</span>
+<span class="kn">import</span> <span class="nn">yakonfig.factory</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">safe_service</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A **method** decorator for creating safe services.</span>
+
+<span class="sd">    Given an attribute name, this returns a decorator for creating</span>
+<span class="sd">    safe services. Namely, if a service that is not yet available is</span>
+<span class="sd">    requested (like a database connection), then ``safe_service`` will</span>
+<span class="sd">    log any errors and set the given attribute to ``default_value``.</span>
+
+<span class="sd">    :param str attr: attribute name</span>
+<span class="sd">    :param object default_value: default value to set</span>
+<span class="sd">    :rtype: decorator</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="n">fun</span><span class="p">):</span>
+        <span class="nd">@functools.wraps</span><span class="p">(</span><span class="n">fun</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fun</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">run</span>
+    <span class="k">return</span> <span class="n">_</span>
+
+
+<span class="k">def</span> <span class="nf">thread_local_property</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39;Creates a thread local ``property``.&#39;&#39;&#39;</span>
+    <span class="n">tlocal</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">local</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">fget</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">tlocal</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">def</span> <span class="nf">fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">tlocal</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">fget</span><span class="p">,</span> <span class="n">fset</span><span class="o">=</span><span class="n">fset</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Config"><a class="viewcode-back" href="../../../index.html#dossier.web.Config">[docs]</a><span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">yakonfig</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">AutoFactory</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Configuration for dossier.web.</span>
+
+<span class="sd">    .. automethod:: dossier.web.Config.create</span>
+<span class="sd">    .. autoattribute:: dossier.web.Config.kvlclient</span>
+<span class="sd">    .. autoattribute:: dossier.web.Config.store</span>
+<span class="sd">    .. autoattribute:: dossier.web.Config.label_store</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">_store</span> <span class="o">=</span> <span class="n">thread_local_property</span><span class="p">()</span>
+    <span class="n">_label_store</span> <span class="o">=</span> <span class="n">thread_local_property</span><span class="p">()</span>
+    <span class="n">_kvlclient</span> <span class="o">=</span> <span class="n">thread_local_property</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Config</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">new_config</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">new_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Config</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">new_config</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_idx_map</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;dossier.web&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dossier_web_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">auto_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Store</span><span class="p">,</span> <span class="n">LabelStore</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@safe_service</span><span class="p">(</span><span class="s">&#39;_store&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">store</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return a thread local :class:`dossier.store.Store` client.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_store</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># This is a bit of a cheat, but I&#39;m not sure of a better way.</span>
+            <span class="c"># At the very least, this is inside a class called ``Config``...</span>
+            <span class="c"># ---AG</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">config</span> <span class="o">=</span> <span class="n">yakonfig</span><span class="o">.</span><span class="n">get_global_config</span><span class="p">(</span><span class="s">&#39;dossier.store&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_store</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">Store</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_store</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@safe_service</span><span class="p">(</span><span class="s">&#39;_label_store&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">label_store</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return a thread local :class:`dossier.label.LabelStore` client.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_label_store</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># This is a bit of a cheat, but I&#39;m not sure of a better way.</span>
+            <span class="c"># At the very least, this is inside a class called ``Config``...</span>
+            <span class="c"># ---AG</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">config</span> <span class="o">=</span> <span class="n">yakonfig</span><span class="o">.</span><span class="n">get_global_config</span><span class="p">(</span><span class="s">&#39;dossier.label&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_label_store</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">LabelStore</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_label_store</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@safe_service</span><span class="p">(</span><span class="s">&#39;_kvlclient&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">kvlclient</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return a thread local ``kvlayer`` client.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kvlclient</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kvlclient</span> <span class="o">=</span> <span class="n">kvlayer</span><span class="o">.</span><span class="n">client</span><span class="p">()</span>
+
+            <span class="c"># This seems pretty leaky. Why does dossier.web care about</span>
+            <span class="c"># the table schema of `stream_items`?</span>
+            <span class="c"># It&#39;s OK, dossier.web won&#39;t be serving stream items in the</span>
+            <span class="c"># future.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kvlclient</span><span class="o">.</span><span class="n">setup_namespace</span><span class="p">({</span>
+                <span class="s">&#39;stream_items&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+                <span class="s">&#39;stream_items_doc_id_epoch_ticks&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="p">})</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kvlclient</span>
+
+</div>
+<span class="k">def</span> <span class="nf">create_injector</span><span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">fun_param_value</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Dependency injection with Bottle.</span>
+
+<span class="sd">    This creates a simple dependency injector that will map</span>
+<span class="sd">    ``param_name`` in routes to the value ``fun_param_value()``</span>
+<span class="sd">    each time the route is invoked.</span>
+
+<span class="sd">    ``fun_param_value`` is a closure so that it is lazily evaluated.</span>
+<span class="sd">    This is useful for handling thread local services like database</span>
+<span class="sd">    connections.</span>
+
+<span class="sd">    :param str param_name: name of function parameter to inject into</span>
+<span class="sd">    :param fun_param_value: the value to insert</span>
+<span class="sd">    :type fun_param_value: a closure that can be applied with zero</span>
+<span class="sd">                           arguments</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">class</span> <span class="nc">_</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="n">api</span> <span class="o">=</span> <span class="mi">2</span>
+
+        <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">route</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">param_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">route</span><span class="o">.</span><span class="n">callback</span><span class="p">)[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="n">callback</span>
+            <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="n">pval</span> <span class="o">=</span> <span class="n">fun_param_value</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">pval</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;service &quot;</span><span class="si">%s</span><span class="s">&quot; unavailable&#39;</span><span class="p">,</span> <span class="n">param_name</span><span class="p">)</span>
+                    <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">503</span><span class="p">,</span> <span class="s">&#39;service &quot;</span><span class="si">%s</span><span class="s">&quot; unavailable&#39;</span> <span class="o">%</span> <span class="n">param_name</span><span class="p">)</span>
+                    <span class="k">return</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">pval</span>
+                <span class="k">return</span> <span class="n">callback</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">_</span>
+    <span class="k">return</span> <span class="n">_</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">JsonPlugin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A custom JSON plugin for Bottle.</span>
+
+<span class="sd">    Bottle has this functionality by default, but it is only triggered</span>
+<span class="sd">    when the return value of a route is a ``dict``. This permits the</span>
+<span class="sd">    programmer to write `json=True` into the route decorator, which</span>
+<span class="sd">    causes the response to *always* be JSON.</span>
+
+<span class="sd">    Basically, it just wraps the return value in ``json.dumps`` and</span>
+<span class="sd">    sets the HTTP content type header appropriately.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">api</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s">&#39;json_response&#39;</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">route</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">route</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;json&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">callback</span>
+        <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">bottle</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">&#39;application/json&#39;</span>
+            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">callback</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">),</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

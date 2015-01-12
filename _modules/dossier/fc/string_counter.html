@@ -1,0 +1,305 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.fc.string_counter &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.fc.string_counter</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.fc Feature Collections</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">.. autoclass:: StringCounter</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">itemgetter</span>
+
+<span class="kn">from</span> <span class="nn">dossier.fc.exceptions</span> <span class="kn">import</span> <span class="n">ReadOnlyException</span>
+
+
+<span class="k">def</span> <span class="nf">mutates</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Decorator for functions that mutate :class:`StringCounter`.</span>
+
+<span class="sd">    This raises :exc:`~dossier.fc.exceptions.ReadOnlyException` if</span>
+<span class="sd">    the object is read-only, and increments the generation counter</span>
+<span class="sd">    otherwise.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next_generation</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<div class="viewcode-block" id="StringCounter"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.StringCounter">[docs]</a><span class="k">class</span> <span class="nc">StringCounter</span><span class="p">(</span><span class="n">Counter</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Simple counter based on exact string matching.</span>
+
+<span class="sd">    This is a subclass of :class:`collections.Counter` that includes a</span>
+<span class="sd">    generation counter so that it can be used in a cache.</span>
+
+<span class="sd">    :class:`StringCounter` is the default feature type in a feature</span>
+<span class="sd">    collection, so you typically don&#39;t have to instantiate a</span>
+<span class="sd">    :class:`StringCounter` explicitly::</span>
+
+<span class="sd">        fc = FeatureCollection()</span>
+<span class="sd">        fc[&#39;NAME&#39;][&#39;John Smith&#39;] += 1</span>
+
+<span class="sd">    But instantiating directly works too::</span>
+
+<span class="sd">        sc = StringCounter()</span>
+<span class="sd">        sc[&#39;John Smith&#39;] += 1</span>
+
+<span class="sd">        fc = FeatureCollection({&#39;NAME&#39;: sc})</span>
+<span class="sd">        fc[&#39;NAME&#39;][&#39;John Smith&#39;] += 1</span>
+<span class="sd">        assert fc[&#39;NAME&#39;][&#39;John Smith&#39;] == 2</span>
+
+<span class="sd">    Note that instances of this class support all the methods defined</span>
+<span class="sd">    for a :class:`collections.Counter`, but only the ones unique to</span>
+<span class="sd">    :class:`StringCounter` are listed here.</span>
+
+<span class="sd">    .. automethod:: __init__</span>
+<span class="sd">    .. automethod:: truncate_most_common</span>
+
+<span class="sd">    .. attribute:: read_only</span>
+
+<span class="sd">        Flag indicating whether this collection is read-only.</span>
+
+<span class="sd">        This flag always begins as :const:`False`, it cannot be set</span>
+<span class="sd">        via the constructor for compatibility with</span>
+<span class="sd">        :class:`collections.Counter`.  If this flag is set, then any</span>
+<span class="sd">        operations that mutate it will raise</span>
+<span class="sd">        :exc:`~dossier.fc.exceptions.ReadOnlyException`.</span>
+
+<span class="sd">    .. attribute:: generation</span>
+
+<span class="sd">        Generation number for this counter instance.</span>
+
+<span class="sd">        This number is incremented by every operation that</span>
+<span class="sd">        mutates the counter object.  If two collections are the</span>
+<span class="sd">        same object and have the same generation number, then</span>
+<span class="sd">        they are identical.</span>
+
+<span class="sd">        Having this property allows a pair of `id(sc)` and the</span>
+<span class="sd">        generation to be an immutable hashable key for things like</span>
+<span class="sd">        memoization operations, accounting for the possibility of the</span>
+<span class="sd">        counter changing over time.</span>
+
+<span class="sd">        &gt;&gt;&gt; sc = StringCounter({&#39;a&#39;: 1})</span>
+<span class="sd">        &gt;&gt;&gt; cache = {(id(sc), sc.generation): 1}</span>
+<span class="sd">        &gt;&gt;&gt; (id(sc), sc.generation) in cache</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; sc[&#39;a&#39;]</span>
+<span class="sd">        1</span>
+<span class="sd">        &gt;&gt;&gt; (id(sc), sc.generation) in cache</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; sc[&#39;a&#39;] += 1</span>
+<span class="sd">        &gt;&gt;&gt; sc[&#39;a&#39;]</span>
+<span class="sd">        2</span>
+<span class="sd">        &gt;&gt;&gt; (id(sc), sc.generation) in cache</span>
+<span class="sd">        False</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">current_generation</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="sd">&#39;&#39;&#39;Class-static generation number.</span>
+
+<span class="sd">    Each mutation of a StringCounter increments this generation,</span>
+<span class="sd">    and sets the counter&#39;s current generation to this value.</span>
+<span class="sd">    See :meth:`next_generation` for details.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="StringCounter.__init__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.StringCounter.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Initialize a :class:`StringCounter` with existing counts::</span>
+
+<span class="sd">            &gt;&gt;&gt; sc = StringCounter(a=4, b=2, c=0)</span>
+<span class="sd">            &gt;&gt;&gt; sc[&#39;b&#39;]</span>
+<span class="sd">            2</span>
+
+<span class="sd">        See the documentation for :class:`collections.Counter` for more</span>
+<span class="sd">        examples.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_generation</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">next_generation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Increment the generation counter on this collection.&#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_generation</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_generation</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__delitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_fix_key</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Normalize keys to Unicode strings.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">key</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c"># On my system, the default encoding is `ascii`, so let&#39;s</span>
+            <span class="c"># explicitly say UTF-8?</span>
+            <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fix_key</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">pop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">popitem</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">popitem</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iterable</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c"># Force all keys into Unicode strings before calling base</span>
+        <span class="c"># class implementation; if kwargs is non-empty then the base</span>
+        <span class="c"># class will call this method again</span>
+        <span class="k">if</span> <span class="n">iterable</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+                <span class="n">iterable</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_fix_key</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="n">v</span>
+                            <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">iterable</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">iterable</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fix_key</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">iterable</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__add__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">StringCounter</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">StringCounter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__sub__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">StringCounter</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="nd">@mutates</span>
+    <span class="k">def</span> <span class="nf">__imul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coef</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">*=</span> <span class="n">coef</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@mutates</span>
+<div class="viewcode-block" id="StringCounter.truncate_most_common"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.StringCounter.truncate_most_common">[docs]</a>    <span class="k">def</span> <span class="nf">truncate_most_common</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">truncation_length</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Sorts the counter and keeps only the most common items up to</span>
+<span class="sd">        ``truncation_length`` in place.</span>
+
+<span class="sd">        :type truncation_length: int</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">keep_keys</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">most_common</span><span class="p">(</span><span class="n">truncation_length</span><span class="p">)}</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keep_keys</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+</div></div>
+<span class="k">class</span> <span class="nc">StringCounterSerializer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="n">loads</span> <span class="o">=</span> <span class="n">StringCounter</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">dumps</span><span class="p">(</span><span class="n">sc</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+
+    <span class="n">constructor</span> <span class="o">=</span> <span class="n">StringCounter</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

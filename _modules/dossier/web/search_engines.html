@@ -1,0 +1,210 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.web.search_engines &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.web.search_engines</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.web.search_engines</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">ifilter</span><span class="p">,</span> <span class="n">islice</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">random</span> <span class="kn">as</span> <span class="nn">rand</span>
+
+<span class="kn">from</span> <span class="nn">dossier.fc</span> <span class="kn">import</span> <span class="n">SparseVector</span><span class="p">,</span> <span class="n">StringCounter</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">random</span><span class="p">(</span><span class="n">store</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return random results with the same name.</span>
+
+<span class="sd">    This finds all content objects that have a matching name and</span>
+<span class="sd">    returns ``limit`` results at random.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">filter_pred</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="n">cids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">fc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">u&#39;NAME&#39;</span><span class="p">):</span>
+            <span class="n">cids</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">index_scan</span><span class="p">(</span><span class="s">u&#39;NAME&#39;</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ifilter</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">):</span> <span class="n">fc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">filter_pred</span><span class="p">((</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">)),</span>
+            <span class="n">store</span><span class="o">.</span><span class="n">get_many</span><span class="p">(</span><span class="n">cids</span><span class="p">)))</span>
+        <span class="n">rand</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s">&#39;results&#39;</span><span class="p">:</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">limit</span><span class="p">]}</span>
+    <span class="k">return</span> <span class="n">_</span>
+
+
+<span class="k">class</span> <span class="nc">plain_index_scan</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return a random sample of an index scan.</span>
+
+<span class="sd">    This scans all indexes defined for all values in the query</span>
+<span class="sd">    corresponding to those indexes.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">store</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store</span> <span class="o">=</span> <span class="n">store</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id</span><span class="p">,</span> <span class="n">filter_pred</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+        <span class="n">cids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">streaming_ids</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">ifilter</span><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">):</span>
+                              <span class="n">fc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">filter_pred</span><span class="p">((</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">)),</span>
+                          <span class="p">((</span><span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cid</span><span class="p">))</span> <span class="k">for</span> <span class="n">cid</span> <span class="ow">in</span> <span class="n">cids</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s">&#39;results&#39;</span><span class="p">:</span> <span class="n">streaming_sample</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">limit</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)}</span>
+
+    <span class="k">def</span> <span class="nf">get_query_fc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id</span><span class="p">):</span>
+        <span class="n">query_fc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">query_fc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Could not find FC for &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">,</span> <span class="n">content_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">query_fc</span>
+
+    <span class="k">def</span> <span class="nf">streaming_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">scan</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">cid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">index_scan</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">cid</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cids</span> <span class="ow">and</span> <span class="n">cid</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">blacklist</span><span class="p">:</span>
+                    <span class="n">cids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">cid</span><span class="p">)</span>
+                    <span class="k">yield</span> <span class="n">cid</span>
+
+        <span class="n">query_fc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query_fc</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">query_fc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">blacklist</span> <span class="o">=</span> <span class="p">{</span><span class="n">content_id</span><span class="p">}</span>
+        <span class="n">cids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;starting index scan (query content id: </span><span class="si">%s</span><span class="s">)&#39;</span><span class="p">,</span> <span class="n">content_id</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">idx_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">index_names</span><span class="p">():</span>
+            <span class="n">feat</span> <span class="o">=</span> <span class="n">query_fc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;[Unicode index: </span><span class="si">%s</span><span class="s">] scanning for &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">,</span>
+                            <span class="n">idx_name</span><span class="p">,</span> <span class="n">feat</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">cid</span> <span class="ow">in</span> <span class="n">scan</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">feat</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="n">cid</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="p">(</span><span class="n">SparseVector</span><span class="p">,</span> <span class="n">StringCounter</span><span class="p">)):</span>
+                <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">feat</span><span class="o">.</span><span class="n">iterkeys</span><span class="p">():</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;[StringCounter index: </span><span class="si">%s</span><span class="s">] scanning for &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">,</span>
+                                <span class="n">idx_name</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">cid</span> <span class="ow">in</span> <span class="n">scan</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+                        <span class="k">yield</span> <span class="n">cid</span>
+
+
+<div class="viewcode-block" id="streaming_sample"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.streaming_sample">[docs]</a><span class="k">def</span> <span class="nf">streaming_sample</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Streaming sample.</span>
+
+<span class="sd">    Iterate over seq (once!) keeping k random elements with uniform</span>
+<span class="sd">    distribution.</span>
+
+<span class="sd">    As a special case, if ``k`` is ``None``, then ``list(seq)`` is</span>
+<span class="sd">    returned.</span>
+
+<span class="sd">    :param seq: iterable of things to sample from</span>
+<span class="sd">    :param k: size of desired sample</span>
+<span class="sd">    :param limit: stop reading ``seq`` after considering this many</span>
+<span class="sd">    :return: list of elements from seq, length k (or less if seq is</span>
+<span class="sd">             short)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+
+    <span class="n">seq</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+        <span class="n">limit</span> <span class="o">-=</span> <span class="n">k</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">limit</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">rand</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">count</span><span class="p">):</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">rand</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">k</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">x</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

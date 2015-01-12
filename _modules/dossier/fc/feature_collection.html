@@ -1,0 +1,785 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.fc.feature_collection &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.fc.feature_collection</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.fc Feature Collections</span>
+
+<span class="sd">:class:`dossier.fc.FeatureCollection` provides</span>
+<span class="sd">convenience methods for working with collections of features</span>
+<span class="sd">such as :class:`dossier.fc.StringCounter`.</span>
+
+<span class="sd">A feature collection provides ``__add__`` and ``__sub__`` so that</span>
+<span class="sd">adding/subtracting FeatureCollections does the right thing for its</span>
+<span class="sd">constituent features.</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">chain</span><span class="p">,</span> <span class="n">ifilter</span><span class="p">,</span> <span class="n">imap</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+
+<span class="kn">import</span> <span class="nn">cbor</span>
+<span class="kn">import</span> <span class="nn">pkg_resources</span>
+
+<span class="kn">import</span> <span class="nn">streamcorpus</span>
+
+<span class="kn">from</span> <span class="nn">dossier.fc.exceptions</span> <span class="kn">import</span> <span class="n">ReadOnlyException</span><span class="p">,</span> <span class="n">SerializationError</span>
+<span class="kn">from</span> <span class="nn">dossier.fc.string_counter</span> <span class="kn">import</span> <span class="n">StringCounterSerializer</span><span class="p">,</span> <span class="n">StringCounter</span>
+<span class="kn">from</span> <span class="nn">dossier.fc.vector</span> <span class="kn">import</span> <span class="n">SparseVector</span><span class="p">,</span> <span class="n">DenseVector</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">UnicodeSerializer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="c"># cbor natively supports Unicode, so we can use the identity function.</span>
+    <span class="n">loads</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">dumps</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">constructor</span> <span class="o">=</span> <span class="nb">unicode</span>
+
+
+<span class="k">class</span> <span class="nc">FeatureTypeRegistry</span> <span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This is a pretty bogus class that has exactly one instance. Its</span>
+<span class="sd">    purpose is to guarantee the correct lazy loading of entry points</span>
+<span class="sd">    into the registry.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">ENTRY_POINT_GROUP</span> <span class="o">=</span> <span class="s">&#39;dossier.fc.feature_types&#39;</span>
+    <span class="n">DEFAULT_FEATURE_TYPE_NAME</span> <span class="o">=</span> <span class="s">&#39;StringCounter&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_points</span> <span class="o">=</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Register a new feature serializer.</span>
+
+<span class="sd">        The feature type should be one of the fixed set of feature</span>
+<span class="sd">        representations, and `name` should be one of ``StringCounter``,</span>
+<span class="sd">        ``SparseVector``, or ``DenseVector``.  `obj` is a describing</span>
+<span class="sd">        object with three fields: `constructor` is a callable that</span>
+<span class="sd">        creates an empty instance of the representation; `dumps` is</span>
+<span class="sd">        a callable that takes an instance of the representation and</span>
+<span class="sd">        returns a JSON-compatible form made of purely primitive</span>
+<span class="sd">        objects (lists, dictionaries, strings, numbers); and `loads`</span>
+<span class="sd">        is a callable that takes the response from `dumps` and recreates</span>
+<span class="sd">        the original representation.</span>
+
+<span class="sd">        Note that ``obj.constructor()`` *must* return an</span>
+<span class="sd">        object that is an instance of one of the following</span>
+<span class="sd">        types: ``unicode``, :class:`dossier.fc.StringCounter`,</span>
+<span class="sd">        :class:`dossier.fc.SparseVector` or</span>
+<span class="sd">        :class:`dossier.fc.DenseVector`. If it isn&#39;t, a</span>
+<span class="sd">        :exc:`ValueError` is raised.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">ro</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">constructor</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cbor_names_to_tags</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s">&#39;Unsupported feature type name: &quot;</span><span class="si">%s</span><span class="s">&quot;. &#39;</span>
+                <span class="s">&#39;Allowed feature type names: </span><span class="si">%r</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">cbor_names_to_tags</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_valid_feature_instance</span><span class="p">(</span><span class="n">ro</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s">&#39;Constructor for &quot;</span><span class="si">%s</span><span class="s">&quot; returned &quot;</span><span class="si">%r</span><span class="s">&quot; which has an unknown &#39;</span>
+                <span class="s">&#39;sub type &quot;</span><span class="si">%r</span><span class="s">&quot;. (mro: </span><span class="si">%r</span><span class="s">). Object must be an instance of &#39;</span>
+                <span class="s">&#39;one of the allowed types: </span><span class="si">%r</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ro</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">ro</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">ro</span><span class="p">)</span><span class="o">.</span><span class="n">mro</span><span class="p">(),</span> <span class="n">ALLOWED_FEATURE_TYPES</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;obj&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="p">,</span> <span class="s">&#39;ro&#39;</span><span class="p">:</span> <span class="n">obj</span><span class="o">.</span><span class="n">constructor</span><span class="p">()}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">constructor</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">feature_type_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">feat_name</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">ty</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ty</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span>
+                <span class="s">&#39;Python type &quot;</span><span class="si">%s</span><span class="s">&quot; is not in the feature type registry: </span><span class="si">%r</span><span class="se">\n\n</span><span class="s">&#39;</span>
+                <span class="s">&#39;The offending feature (</span><span class="si">%s</span><span class="s">): </span><span class="si">%r</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="n">ty</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span><span class="p">,</span> <span class="n">feat_name</span><span class="p">,</span> <span class="n">obj</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span><span class="p">[</span><span class="n">ty</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">is_serializeable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span>
+
+    <span class="k">def</span> <span class="nf">_get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_entry_points</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">type_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span>
+                <span class="s">&#39;Feature type </span><span class="si">%r</span><span class="s"> not in feature type registry: </span><span class="si">%r</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="n">type_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span><span class="p">[</span><span class="n">type_name</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get</span><span class="p">(</span><span class="n">type_name</span><span class="p">)[</span><span class="s">&#39;obj&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get_constructor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get</span><span class="p">(</span><span class="n">type_name</span><span class="p">)[</span><span class="s">&#39;obj&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">constructor</span>
+
+    <span class="k">def</span> <span class="nf">get_read_only</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get</span><span class="p">(</span><span class="n">type_name</span><span class="p">)[</span><span class="s">&#39;ro&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">types</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_entry_points</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_load_entry_points</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_points</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_points</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">for</span> <span class="n">epoint</span> <span class="ow">in</span> <span class="n">pkg_resources</span><span class="o">.</span><span class="n">iter_entry_points</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ENTRY_POINT_GROUP</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="n">epoint</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="n">pkg_resources</span><span class="o">.</span><span class="n">DistributionNotFound</span><span class="p">):</span>
+                <span class="kn">import</span> <span class="nn">traceback</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+                <span class="k">continue</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">epoint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_points</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_registry</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inverse</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s">&#39;StringCounter&#39;</span><span class="p">,</span> <span class="n">StringCounterSerializer</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s">&#39;Unicode&#39;</span><span class="p">,</span> <span class="n">UnicodeSerializer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset</span><span class="p">()</span>
+
+<span class="n">cbor_names_to_tags</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c"># Tagged just in case someone wants to changed the binary format.</span>
+    <span class="c"># By default, FeatureCollection will deserialize it as a special case</span>
+    <span class="c"># into a dict of {unicode |--&gt; int} with no tag.</span>
+    <span class="s">&#39;StringCounter&#39;</span><span class="p">:</span> <span class="mi">55800</span><span class="p">,</span>
+    <span class="c"># Not tagged because CBOR supports it natively.</span>
+    <span class="s">&#39;Unicode&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+    <span class="c"># These are *always* tagged.</span>
+    <span class="s">&#39;SparseVector&#39;</span><span class="p">:</span> <span class="mi">55801</span><span class="p">,</span>
+    <span class="s">&#39;DenseVector&#39;</span><span class="p">:</span> <span class="mi">55802</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">cbor_tags_to_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cbor_names_to_tags</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="p">}</span>
+<span class="n">ALLOWED_FEATURE_TYPES</span> <span class="o">=</span> <span class="p">(</span><span class="nb">unicode</span><span class="p">,</span> <span class="n">StringCounter</span><span class="p">,</span> <span class="n">SparseVector</span><span class="p">,</span> <span class="n">DenseVector</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">is_native_string_counter</span><span class="p">(</span><span class="n">cbor_data</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cbor_data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">is_counter</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Counter</span><span class="p">)</span> \
+        <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;is_counter&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">is_valid_feature_instance</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">ALLOWED_FEATURE_TYPES</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="FeatureCollectionChunk"><a class="viewcode-back" href="../../../index.html#dossier.fc.FeatureCollectionChunk">[docs]</a><span class="k">class</span> <span class="nc">FeatureCollectionChunk</span><span class="p">(</span><span class="n">streamcorpus</span><span class="o">.</span><span class="n">CborChunk</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A :class:`FeatureCollectionChunk` provides a way to serialize</span>
+<span class="sd">    a colllection of feature collections to a single blob of data.</span>
+
+<span class="sd">    Here&#39;s an example that writes two feature collections to an existing</span>
+<span class="sd">    file handle::</span>
+
+<span class="sd">        fc1 = FeatureCollection({&#39;NAME&#39;: {&#39;foo&#39;: 2, &#39;baz&#39;: 1}})</span>
+<span class="sd">        fc2 = FeatureCollection({&#39;NAME&#39;: {&#39;foo&#39;: 4, &#39;baz&#39;: 2}})</span>
+
+<span class="sd">        fh = StringIO()</span>
+<span class="sd">        chunk = FeatureCollectionChunk(file_obj=fh, mode=&#39;wb&#39;)</span>
+<span class="sd">        chunk.add(fc1)</span>
+<span class="sd">        chunk.add(fc2)</span>
+<span class="sd">        chunk.flush()</span>
+
+<span class="sd">    And the blob created inside the buffer can be read from to produce</span>
+<span class="sd">    an iterable of the feature collections that were written::</span>
+
+<span class="sd">        fh = StringIO(fh.getvalue())</span>
+<span class="sd">        chunk = FeatureCollectionChunk(file_obj=fh, mode=&#39;rb&#39;)</span>
+<span class="sd">        rfc1, rfc2 = list(chunk)</span>
+<span class="sd">        assert fc1 == rfc1</span>
+<span class="sd">        assert fc2 == rfc2</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;write_wrapper&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="o">.</span><span class="n">to_dict</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;read_wrapper&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="o">.</span><span class="n">from_dict</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FeatureCollectionChunk</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="FeatureCollection"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection">[docs]</a><span class="k">class</span> <span class="nc">FeatureCollection</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">MutableMapping</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A collection of features.</span>
+
+<span class="sd">    This is a dictionary from feature name to a</span>
+<span class="sd">    :class:`collections.Counter` or similar object. In typical use</span>
+<span class="sd">    callers will not try to instantiate individual dictionary elements,</span>
+<span class="sd">    but will fall back on the collection&#39;s default-value behavior::</span>
+
+<span class="sd">        fc = FeatureCollection()</span>
+<span class="sd">        fc[&#39;NAME&#39;][&#39;John Smith&#39;] += 1</span>
+
+<span class="sd">    The default default feature type is</span>
+<span class="sd">    :class:`~dossier.fc.StringCounter`.</span>
+
+<span class="sd">    **Feature collection construction and serialization:**</span>
+
+<span class="sd">    .. automethod:: __init__</span>
+<span class="sd">    .. automethod:: loads</span>
+<span class="sd">    .. automethod:: dumps</span>
+<span class="sd">    .. automethod:: from_dict</span>
+<span class="sd">    .. automethod:: to_dict</span>
+<span class="sd">    .. automethod:: register_serializer</span>
+
+<span class="sd">    **Feature collection values and attributes:**</span>
+
+<span class="sd">    .. autoattribute:: read_only</span>
+<span class="sd">    .. autoattribute:: generation</span>
+<span class="sd">    .. autoattribute:: DISPLAY_PREFIX</span>
+<span class="sd">    .. autoattribute:: EPHEMERAL_PREFIX</span>
+
+<span class="sd">    **Feature collection computation:**</span>
+
+<span class="sd">    .. automethod:: __add__</span>
+<span class="sd">    .. automethod:: __sub__</span>
+<span class="sd">    .. automethod:: __mul__</span>
+<span class="sd">    .. automethod:: __imul__</span>
+<span class="sd">    .. automethod:: total</span>
+<span class="sd">    .. automethod:: merge_with</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;_features&#39;</span><span class="p">,</span> <span class="s">&#39;_read_only&#39;</span><span class="p">]</span>
+
+    <span class="n">DISPLAY_PREFIX</span> <span class="o">=</span> <span class="s">&#39;#&#39;</span>
+    <span class="sd">&#39;&#39;&#39;Prefix on names of features that are human-readable.</span>
+
+<span class="sd">    Processing may convert a feature ``name`` to a similar feature</span>
+<span class="sd">    ``#name`` that is human-readable, while converting the original</span>
+<span class="sd">    feature to a form that is machine-readable only; for instance,</span>
+<span class="sd">    replacing strings with integers for faster comparison.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">EPHEMERAL_PREFIX</span> <span class="o">=</span> <span class="s">&#39;_&#39;</span>
+    <span class="sd">&#39;&#39;&#39;Prefix on names of features that are not persisted.</span>
+
+<span class="sd">    :meth:`to_dict` and :meth:`dumps` will not write out features</span>
+<span class="sd">    that begin with this character.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="FeatureCollection.register_serializer"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.register_serializer">[docs]</a>    <span class="k">def</span> <span class="nf">register_serializer</span><span class="p">(</span><span class="n">feature_type</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        This is a **class** method that lets you define your own</span>
+<span class="sd">        feature type serializers. ``tag`` should be the name of</span>
+<span class="sd">        the feature type that you want to define serialization</span>
+<span class="sd">        for. Currently, the valid values are ``StringCounter``,</span>
+<span class="sd">        ``Unicode``, ``SparseVector`` or ``DenseVector``.</span>
+
+<span class="sd">        Note that this function is not thread safe.</span>
+
+<span class="sd">        ``obj`` must be an object with three attributes defined.</span>
+
+<span class="sd">        ``obj.loads`` is a function that takes a CBOR created</span>
+<span class="sd">        Python data structure and returns a new feature counter.</span>
+
+<span class="sd">        ``obj.dumps`` is a function that takes a feature counter</span>
+<span class="sd">        and returns a Python data structure that can be serialized</span>
+<span class="sd">        by CBOR.</span>
+
+<span class="sd">        ``obj.constructor`` is a function with no parameters that</span>
+<span class="sd">        returns the Python ``type`` that can be used to construct</span>
+<span class="sd">        new features. It should be possible to call</span>
+<span class="sd">        ``obj.constructor()`` to get a new and empty feature</span>
+<span class="sd">        counter.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">registry</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">feature_type</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="FeatureCollection.__init__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Creates a new empty feature collection.</span>
+
+<span class="sd">        If ``data`` is a dictionary-like object with a structure similar</span>
+<span class="sd">        to that of a feature collection (i.e., a dict of multisets),</span>
+<span class="sd">        then it is used to initialize the feature collection.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_features</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span> <span class="o">=</span> <span class="n">read_only</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_from_dict_update</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="FeatureCollection.loads"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.loads">[docs]</a>    <span class="k">def</span> <span class="nf">loads</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a feature collection from a CBOR byte string.&#39;&#39;&#39;</span>
+        <span class="n">rep</span> <span class="o">=</span> <span class="n">cbor</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rep</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Sequence</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span><span class="s">&#39;expected a CBOR list&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rep</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span><span class="s">&#39;expected a CBOR list of 2 items&#39;</span><span class="p">)</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="n">rep</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s">&#39;v&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">metadata</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span><span class="s">&#39;no version in CBOR metadata&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span><span class="p">[</span><span class="s">&#39;v&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&#39;fc01&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span><span class="s">&#39;invalid CBOR version {!r} &#39;</span>
+                                     <span class="s">&#39;(expected &quot;fc01&quot;)&#39;</span>
+                                     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">metadata</span><span class="p">[</span><span class="s">&#39;v&#39;</span><span class="p">]))</span>
+        <span class="n">read_only</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ro&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+        <span class="n">contents</span> <span class="o">=</span> <span class="n">rep</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">contents</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="n">read_only</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="FeatureCollection.dumps"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.dumps">[docs]</a>    <span class="k">def</span> <span class="nf">dumps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a CBOR byte string from a feature collection.&#39;&#39;&#39;</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;v&#39;</span><span class="p">:</span> <span class="s">&#39;fc01&#39;</span><span class="p">}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="n">metadata</span><span class="p">[</span><span class="s">&#39;ro&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">rep</span> <span class="o">=</span> <span class="p">[</span><span class="n">metadata</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()]</span>
+        <span class="k">return</span> <span class="n">cbor</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">rep</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="FeatureCollection.from_dict"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.from_dict">[docs]</a>    <span class="k">def</span> <span class="nf">from_dict</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Recreate a feature collection from a dictionary.</span>
+
+<span class="sd">        The dictionary is of the format dumped by :meth:`to_dict`.</span>
+<span class="sd">        Additional information, such as whether the feature collection</span>
+<span class="sd">        should be read-only, is not included in this dictionary, and</span>
+<span class="sd">        is instead passed as parameters to this function.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">read_only</span><span class="o">=</span><span class="n">read_only</span><span class="p">)</span>
+        <span class="n">fc</span><span class="o">.</span><span class="n">_features</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">fc</span><span class="o">.</span><span class="n">_from_dict_update</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fc</span>
+</div>
+    <span class="k">def</span> <span class="nf">_from_dict_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">feat</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">EPHEMERAL_PREFIX</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">feat</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="n">cbor</span><span class="o">.</span><span class="n">Tag</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">feat</span><span class="o">.</span><span class="n">tag</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cbor_tags_to_names</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span>
+                        <span class="s">&#39;Unknown CBOR value (tag id: </span><span class="si">%d</span><span class="s">): </span><span class="si">%r</span><span class="s">&#39;</span>
+                        <span class="o">%</span> <span class="p">(</span><span class="n">feat</span><span class="o">.</span><span class="n">tag</span><span class="p">,</span> <span class="n">feat</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+                <span class="n">loads</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cbor_tags_to_names</span><span class="p">[</span><span class="n">feat</span><span class="o">.</span><span class="n">tag</span><span class="p">])</span><span class="o">.</span><span class="n">loads</span>
+                <span class="n">feat</span> <span class="o">=</span> <span class="n">feat</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">elif</span> <span class="n">is_native_string_counter</span><span class="p">(</span><span class="n">feat</span><span class="p">):</span>
+                <span class="n">loads</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;StringCounter&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">loads</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+                <span class="c"># A Unicode string.</span>
+                <span class="n">loads</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;Unicode&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">loads</span>
+            <span class="k">elif</span> <span class="n">registry</span><span class="o">.</span><span class="n">is_serializeable</span><span class="p">(</span><span class="n">feat</span><span class="p">):</span>
+                <span class="n">loads</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SerializationError</span><span class="p">(</span>
+                    <span class="s">&#39;Unknown CBOR value (type: </span><span class="si">%r</span><span class="s">): </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">feat</span><span class="p">),</span> <span class="n">feat</span><span class="p">))</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">loads</span><span class="p">(</span><span class="n">feat</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s">&#39;read_only&#39;</span><span class="p">):</span>
+                <span class="n">value</span><span class="o">.</span><span class="n">read_only</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="FeatureCollection.to_dict"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.to_dict">[docs]</a>    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Dump a feature collection&#39;s features to a dictionary.</span>
+
+<span class="sd">        This does not include additional data, such as whether</span>
+<span class="sd">        or not the collection is read-only.  The returned dictionary</span>
+<span class="sd">        is suitable for serialization into JSON, CBOR, or similar</span>
+<span class="sd">        data formats.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">def</span> <span class="nf">is_non_native_sc</span><span class="p">(</span><span class="n">ty</span><span class="p">,</span> <span class="n">encoded</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">ty</span> <span class="o">==</span> <span class="s">&#39;StringCounter&#39;</span>
+                    <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_native_string_counter</span><span class="p">(</span><span class="n">encoded</span><span class="p">))</span>
+
+        <span class="n">fc</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">native</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;StringCounter&#39;</span><span class="p">,</span> <span class="s">&#39;Unicode&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">feat</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">EPHEMERAL_PREFIX</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+            <span class="n">tyname</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">feature_type_name</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">feat</span><span class="p">)</span>
+            <span class="n">encoded</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tyname</span><span class="p">)</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">feat</span><span class="p">)</span>
+
+            <span class="c"># This tomfoolery is to support *native untagged* StringCounters.</span>
+            <span class="k">if</span> <span class="n">tyname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">native</span> <span class="ow">or</span> <span class="n">is_non_native_sc</span><span class="p">(</span><span class="n">tyname</span><span class="p">,</span> <span class="n">encoded</span><span class="p">):</span>
+                <span class="n">encoded</span> <span class="o">=</span> <span class="n">cbor</span><span class="o">.</span><span class="n">Tag</span><span class="p">(</span><span class="n">cbor_names_to_tags</span><span class="p">[</span><span class="n">tyname</span><span class="p">],</span> <span class="n">encoded</span><span class="p">)</span>
+            <span class="n">fc</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">encoded</span>
+        <span class="k">return</span> <span class="n">fc</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">generation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Get the generation number for this feature collection.</span>
+
+<span class="sd">        This is the highest generation number across all counters</span>
+<span class="sd">        in the collection, if the counters support generation</span>
+<span class="sd">        numbers.  This collection has not changed if the generation</span>
+<span class="sd">        number has not changed.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">collection</span><span class="p">,</span> <span class="s">&#39;generation&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="o">.</span><span class="n">itervalues</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;FeatureCollection(</span><span class="si">%r</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span>
+
+    <span class="k">def</span> <span class="nf">__missing__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="c"># reaturn a read-only instance of the default type, of</span>
+            <span class="c"># which there is one, because we&#39;ll only ever need one,</span>
+            <span class="c"># because it&#39;s read-only.</span>
+            <span class="k">return</span> <span class="n">registry</span><span class="o">.</span><span class="n">get_read_only</span><span class="p">(</span>
+                <span class="n">FeatureTypeRegistry</span><span class="o">.</span><span class="n">DEFAULT_FEATURE_TYPE_NAME</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">EPHEMERAL_PREFIX</span><span class="p">):</span>
+            <span class="c"># When the feature name starts with an ephemeral prefix, then</span>
+            <span class="c"># we have no idea what it should be---anything goes. Therefore,</span>
+            <span class="c"># the caller must set the initial value themselves (and we must</span>
+            <span class="c"># be careful not to get too eager with relying on __missing__).</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">default_value</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get_constructor</span><span class="p">(</span>
+            <span class="n">FeatureTypeRegistry</span><span class="o">.</span><span class="n">DEFAULT_FEATURE_TYPE_NAME</span><span class="p">)()</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_value</span>
+        <span class="k">return</span> <span class="n">default_value</span>
+
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns ``True`` if the feature named ``key`` is in this</span>
+<span class="sd">        FeatureCollection.</span>
+
+<span class="sd">        :type key: unicode</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span>
+
+<div class="viewcode-block" id="FeatureCollection.merge_with"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.merge_with">[docs]</a>    <span class="k">def</span> <span class="nf">merge_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">multiset_op</span><span class="p">,</span> <span class="n">other_op</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Merge this feature collection with another.</span>
+
+<span class="sd">        Merges two feature collections using the given ``multiset_op``</span>
+<span class="sd">        on each corresponding multiset and returns a new</span>
+<span class="sd">        :class:`FeatureCollection`. The contents of the two original</span>
+<span class="sd">        feature collections are not modified.</span>
+
+<span class="sd">        For each feature name in both feature sets, if either feature</span>
+<span class="sd">        collection being merged has a :class:`collections.Counter`</span>
+<span class="sd">        instance as its value, then the two values are merged by</span>
+<span class="sd">        calling `multiset_op` with both values as parameters.  If</span>
+<span class="sd">        either feature collection has something other than a</span>
+<span class="sd">        :class:`collections.Counter`, and `other_op` is not</span>
+<span class="sd">        :const:`None`, then `other_op` is called with both values to</span>
+<span class="sd">        merge them.  If `other_op` is :const:`None` and a feature</span>
+<span class="sd">        is not present in either feature collection with a counter</span>
+<span class="sd">        value, then the feature will not be present in the result.</span>
+
+<span class="sd">        :param other: The feature collection to merge into ``self``.</span>
+<span class="sd">        :type other: :class:`FeatureCollection`</span>
+<span class="sd">        :param multiset_op: Function to merge two counters</span>
+<span class="sd">        :type multiset_op: fun(Counter, Counter) -&gt; Counter</span>
+<span class="sd">        :param other_op: Function to merge two non-counters</span>
+<span class="sd">        :type other_op: fun(object, object) -&gt; object</span>
+<span class="sd">        :rtype: :class:`FeatureCollection`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">ms_name</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counters</span><span class="p">())</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">_counters</span><span class="p">()):</span>
+            <span class="n">c1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ms_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ms_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">c1</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">c2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">c1</span> <span class="o">=</span> <span class="n">c2</span><span class="o">.</span><span class="n">__class__</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">c2</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">c1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">c2</span> <span class="o">=</span> <span class="n">c1</span><span class="o">.</span><span class="n">__class__</span><span class="p">()</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">ms_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">multiset_op</span><span class="p">(</span><span class="n">c1</span><span class="p">,</span> <span class="n">c2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">other_op</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">o_name</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_not_counters</span><span class="p">())</span> <span class="o">|</span>
+                           <span class="nb">set</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">_not_counters</span><span class="p">())):</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">other_op</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span> <span class="n">other</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">o_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">result</span><span class="p">[</span><span class="n">o_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="k">return</span> <span class="n">result</span>
+</div>
+<div class="viewcode-block" id="FeatureCollection.__add__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.__add__">[docs]</a>    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Add features from two FeatureCollections.</span>
+
+<span class="sd">        &gt;&gt;&gt; fc1 = FeatureCollection({&#39;foo&#39;: Counter(&#39;abbb&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc2 = FeatureCollection({&#39;foo&#39;: Counter(&#39;bcc&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc1 + fc2</span>
+<span class="sd">        FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 4, &#39;c&#39;: 2, &#39;a&#39;: 1})})</span>
+
+<span class="sd">        Note that if a feature in either of the collections is not an</span>
+<span class="sd">        instance of :class:`collections.Counter`, then it is ignored.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_with</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__iadd__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        In-place add features from two FeatureCollections.</span>
+
+<span class="sd">        &gt;&gt;&gt; fc1 = FeatureCollection({&#39;foo&#39;: Counter(&#39;abbb&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc2 = FeatureCollection({&#39;foo&#39;: Counter(&#39;bcc&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc1 += fc2</span>
+<span class="sd">        FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 4, &#39;c&#39;: 2, &#39;a&#39;: 1})})</span>
+
+<span class="sd">        Note that if a feature in either of the collections is not an</span>
+<span class="sd">        instance of :class:`collections.Counter`, then it is ignored.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_with</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">iadd</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_features</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">_features</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="FeatureCollection.__sub__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.__sub__">[docs]</a>    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Subtract features from two FeatureCollections.</span>
+
+<span class="sd">        &gt;&gt;&gt; fc1 = FeatureCollection({&#39;foo&#39;: Counter(&#39;abbb&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc2 = FeatureCollection({&#39;foo&#39;: Counter(&#39;bcc&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc1 - fc2</span>
+<span class="sd">        FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 2, &#39;a&#39;: 1})})</span>
+
+<span class="sd">        Note that if a feature in either of the collections is not an</span>
+<span class="sd">        instance of :class:`collections.Counter`, then it is ignored.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_with</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">sub</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__isub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        In-place subtract features from two FeatureCollections.</span>
+
+<span class="sd">        &gt;&gt;&gt; fc1 = FeatureCollection({&#39;foo&#39;: Counter(&#39;abbb&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc2 = FeatureCollection({&#39;foo&#39;: Counter(&#39;bcc&#39;)})</span>
+<span class="sd">        &gt;&gt;&gt; fc1 -= fc2</span>
+<span class="sd">        FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 2, &#39;a&#39;: 1})})</span>
+
+<span class="sd">        Note that if a feature in either of the collections is not an</span>
+<span class="sd">        instance of :class:`collections.Counter`, then it is ignored.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_with</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">operator</span><span class="o">.</span><span class="n">isub</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_features</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">_features</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="FeatureCollection.__mul__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.__mul__">[docs]</a>    <span class="k">def</span> <span class="nf">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coef</span><span class="p">):</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">fc</span> <span class="o">*=</span> <span class="n">coef</span>
+        <span class="k">return</span> <span class="n">fc</span>
+</div>
+<div class="viewcode-block" id="FeatureCollection.__imul__"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.__imul__">[docs]</a>    <span class="k">def</span> <span class="nf">__imul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coef</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;In-place multiplication by a scalar.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">coef</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counters</span><span class="p">():</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">*=</span> <span class="n">coef</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</div>
+<div class="viewcode-block" id="FeatureCollection.total"><a class="viewcode-back" href="../../../dossier.fc.html#dossier.fc.FeatureCollection.total">[docs]</a>    <span class="k">def</span> <span class="nf">total</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns sum of all counts in all features that are multisets.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">feats</span> <span class="o">=</span> <span class="n">imap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counters</span><span class="p">())</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">mset</span><span class="p">:</span> <span class="nb">map</span><span class="p">(</span><span class="nb">abs</span><span class="p">,</span> <span class="n">mset</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">feats</span><span class="p">)))</span>
+</div>
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the feature named ``key``. If ``key`` does not</span>
+<span class="sd">        exist, then a new empty :class:`StringCounter` is created.</span>
+<span class="sd">        Alternatively, a second optional positional argument can</span>
+<span class="sd">        be given that is used as a default value.</span>
+
+<span class="sd">        Note that traditional indexing is supported too, e.g.::</span>
+
+<span class="sd">            fc = FeatureCollection({&#39;NAME&#39;: {&#39;foo&#39;: 1}})</span>
+<span class="sd">            assert fc[&#39;NAME&#39;] == StringCounter({&#39;foo&#39;: 1})</span>
+
+<span class="sd">        :type key: unicode</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">v</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__missing__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">default</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s">&#39;read_only&#39;</span><span class="p">):</span>
+            <span class="n">value</span><span class="o">.</span><span class="n">read_only</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Deletes the feature named ``key`` from this feature collection.</span>
+
+<span class="sd">        :type key: unicode</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_only</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ReadOnlyException</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_counters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns a generator of ``feature_name`` where ``feature_name``</span>
+<span class="sd">        corresponds to a feature that is an instance of</span>
+<span class="sd">        :class:`collections.Counter`. This method is useful when you</span>
+<span class="sd">        need to perform operations only on features that are multisets.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">ifilter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="n">is_counter</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">n</span><span class="p">]),</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_not_counters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns a generator of ``feature_name`` where ``feature_name``</span>
+<span class="sd">        corresponds to a feature that is **not** an instance of</span>
+<span class="sd">        :class:`collections.Counter`. This method is useful when you</span>
+<span class="sd">        need to perform operations only on features that are **not**</span>
+<span class="sd">        multisets.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">ifilter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="ow">not</span> <span class="n">is_counter</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">n</span><span class="p">]),</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="o">.</span><span class="n">iterkeys</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the number of features in this collection.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="p">)))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">read_only</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Flag if this feature collection is read-only.</span>
+
+<span class="sd">        When a feature collection is read-only, no part of it</span>
+<span class="sd">        can be modified.  Individual feature counters cannot</span>
+<span class="sd">        be added, deleted, or changed.  This attribute is</span>
+<span class="sd">        preserved across serialization and deserialization.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_only</span>
+
+    <span class="nd">@read_only.setter</span>
+    <span class="k">def</span> <span class="nf">read_only</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ro</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_read_only</span> <span class="o">=</span> <span class="n">ro</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_features</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="s">&#39;read_only&#39;</span><span class="p">):</span>
+                <span class="n">v</span><span class="o">.</span><span class="n">read_only</span> <span class="o">=</span> <span class="n">ro</span>
+
+</div>
+<span class="n">registry</span> <span class="o">=</span> <span class="n">FeatureTypeRegistry</span><span class="p">()</span>
+<span class="n">registry</span><span class="o">.</span><span class="n">_reset</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

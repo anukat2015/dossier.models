@@ -1,0 +1,597 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.store.store &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.store.store</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.store.Store</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">imap</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">itemgetter</span>
+<span class="kn">import</span> <span class="nn">struct</span>
+
+<span class="kn">import</span> <span class="nn">snappy</span>
+
+<span class="kn">from</span> <span class="nn">dossier.fc</span> <span class="kn">import</span> <span class="n">FeatureCollection</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="feature_index"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.feature_index">[docs]</a><span class="k">def</span> <span class="nf">feature_index</span><span class="p">(</span><span class="o">*</span><span class="n">feature_names</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Returns a index creation function.</span>
+
+<span class="sd">    Returns a valid index ``create`` function for the feature names</span>
+<span class="sd">    given. This can be used with the :meth:`Store.define_index`</span>
+<span class="sd">    method to create indexes on any combination of features in a</span>
+<span class="sd">    feature collection.</span>
+
+<span class="sd">    :type feature_names: list(unicode)</span>
+<span class="sd">    :rtype: ``(val -&gt; index val)</span>
+<span class="sd">              -&gt; (content_id, FeatureCollection)</span>
+<span class="sd">              -&gt; generator of [index val]``</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="n">trans</span><span class="p">,</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="n">feature_names</span><span class="p">:</span>
+            <span class="n">feat</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">feat</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+                <span class="k">yield</span> <span class="n">trans</span><span class="p">(</span><span class="n">feat</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c"># string counter, sparse/dense vector</span>
+                <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">feat</span><span class="o">.</span><span class="n">iterkeys</span><span class="p">():</span>
+                    <span class="k">yield</span> <span class="n">trans</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_</span>
+
+</div>
+<span class="k">def</span> <span class="nf">basic_transform</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A basic transform for strings and integers.&#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s">&#39;&gt;i&#39;</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">safe_lower_utf8</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">safe_lower_utf8</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;x.lower().encode(&#39;utf-8&#39;) where x can be None, str, or unicode&#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span>
+
+
+<div class="viewcode-block" id="Store"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store">[docs]</a><span class="k">class</span> <span class="nc">Store</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A feature collection database.</span>
+
+<span class="sd">    A feature collection database stores feature collections for content</span>
+<span class="sd">    objects like profiles from external knowledge bases.</span>
+
+<span class="sd">    Every feature collection is keyed by its ``content_id``, which is a</span>
+<span class="sd">    byte string. The value of a ``content_id`` is specific to the type</span>
+<span class="sd">    of content represented by the feature collection. In other words,</span>
+<span class="sd">    its representation is unspecified.</span>
+
+<span class="sd">    .. automethod:: __init__</span>
+<span class="sd">    .. automethod:: get</span>
+<span class="sd">    .. automethod:: get_many</span>
+<span class="sd">    .. automethod:: put</span>
+<span class="sd">    .. automethod:: delete</span>
+<span class="sd">    .. automethod:: delete_all</span>
+<span class="sd">    .. automethod:: scan</span>
+<span class="sd">    .. automethod:: scan_ids</span>
+<span class="sd">    .. automethod:: scan_prefix</span>
+<span class="sd">    .. automethod:: scan_prefix_ids</span>
+
+<span class="sd">    **Methods for indexing:**</span>
+
+<span class="sd">    .. automethod:: index_scan</span>
+<span class="sd">    .. automethod:: index_scan_prefix</span>
+<span class="sd">    .. automethod:: index_scan_prefix_and_return_key</span>
+<span class="sd">    .. automethod:: define_index</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">config_name</span> <span class="o">=</span> <span class="s">&#39;dossier.store&#39;</span>
+    <span class="n">TABLE</span> <span class="o">=</span> <span class="s">&#39;fc&#39;</span>
+    <span class="n">INDEX_TABLE</span> <span class="o">=</span> <span class="s">&#39;fci&#39;</span>
+
+    <span class="n">_kvlayer_namespace</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">TABLE</span><span class="p">:</span> <span class="p">(</span><span class="nb">str</span><span class="p">,),</span>                <span class="c"># content_id -&gt; feature collection</span>
+        <span class="n">INDEX_TABLE</span><span class="p">:</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span> <span class="c"># idx name, value, content_id -&gt; NUL</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">kvlclient</span><span class="p">,</span> <span class="n">impl</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">feature_indexes</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">impl</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Store</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">kvlclient</span><span class="p">,</span>
+                                             <span class="n">feature_indexes</span><span class="o">=</span><span class="n">feature_indexes</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mod</span><span class="p">,</span> <span class="n">cls_name</span> <span class="o">=</span> <span class="n">impl</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)</span>
+            <span class="n">cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">__import__</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">fromlist</span><span class="o">=</span><span class="p">[</span><span class="n">cls_name</span><span class="p">]),</span> <span class="n">cls_name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">kvlclient</span><span class="p">,</span> <span class="n">feature_indexes</span><span class="o">=</span><span class="n">feature_indexes</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Store.__init__"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kvlclient</span><span class="p">,</span> <span class="n">impl</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">feature_indexes</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Connects to a feature collection store.</span>
+
+<span class="sd">        This also initializes the underlying kvlayer namespace.</span>
+
+<span class="sd">        :param kvl: kvlayer storage client</span>
+<span class="sd">        :type kvl: :class:`kvlayer.AbstractStorage`</span>
+<span class="sd">        :rtype: :class:`Store`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">kvlclient</span><span class="o">.</span><span class="n">setup_namespace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kvlayer_namespace</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span> <span class="o">=</span> <span class="n">kvlclient</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">feature_indexes</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">define_index</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">feature_index</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">basic_transform</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.get"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Retrieve a feature collection from the store.  This is the same as</span>
+<span class="sd">        get_many([content_id])</span>
+
+<span class="sd">        If the feature collection does not exist ``None`` is</span>
+<span class="sd">        returned.</span>
+
+<span class="sd">        :type content_id: str</span>
+<span class="sd">        :rtype: :class:`dossier.fc.FeatureCollection`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span> <span class="p">(</span><span class="n">content_id</span><span class="p">,)))</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">,</span> <span class="s">&#39;more than one FC with the same content id&#39;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="n">fc_loads</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+</div>
+<div class="viewcode-block" id="Store.get_many"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.get_many">[docs]</a>    <span class="k">def</span> <span class="nf">get_many</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id_list</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Yield (content_id, data) tuples for ids in list.</span>
+
+<span class="sd">        As with :meth:`get`, if a content_id in the list is missing,</span>
+<span class="sd">        then it is yielded with a data value of `None`.</span>
+
+<span class="sd">        :type content_id_list: list&lt;str&gt;</span>
+<span class="sd">        :rtype: yields tuple(str, :class:`dossier.fc.FeatureCollection`)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">content_id_keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">tuplify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">content_id_list</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span> <span class="o">*</span><span class="n">content_id_keys</span><span class="p">):</span>
+            <span class="n">content_id</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">fc_loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.put"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.put">[docs]</a>    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">indexes</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Add feature collections to the store.</span>
+
+<span class="sd">        Given an iterable of tuples of the form</span>
+<span class="sd">        ``(content_id, feature collection)``, add each to the store</span>
+<span class="sd">        and overwrite any that already exist.</span>
+
+<span class="sd">        This method optionally accepts a keyword argument `indexes`,</span>
+<span class="sd">        which by default is set to ``True``. When it is ``True``,</span>
+<span class="sd">        it will *create* new indexes for each content object for all</span>
+<span class="sd">        indexes defined on this store.</span>
+
+<span class="sd">        Note that this will not update existing indexes. (There is</span>
+<span class="sd">        currently no way to do this without running some sort of</span>
+<span class="sd">        garbage collection process.)</span>
+
+<span class="sd">        :param iterable items: iterable of</span>
+<span class="sd">                               ``(content_id, FeatureCollection)``.</span>
+<span class="sd">        :type fc: :class:`dossier.fc.FeatureCollection`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># So why accept an iterable? Ideally, some day, `kvlayer.put` would</span>
+        <span class="c"># accept an iterable, so we should too.</span>
+        <span class="c">#</span>
+        <span class="c"># But we have to transform it to a list in order to update indexes</span>
+        <span class="c"># anyway. Well, if we don&#39;t have to update indexes, then we can avoid</span>
+        <span class="c"># loading everything into memory, which seems like an optimization</span>
+        <span class="c"># worth having even if it&#39;s only some of the time.</span>
+        <span class="c">#</span>
+        <span class="c"># N.B. If you&#39;re thinking, &quot;Just use itertools.tee&quot;, then you should</span>
+        <span class="c"># heed this warning from Python docs: &quot;This itertool may require</span>
+        <span class="c"># significant auxiliary storage (depending on how much temporary data</span>
+        <span class="c"># needs to be stored). In general, if one iterator uses most or all of</span>
+        <span class="c"># the data before another iterator starts, it is faster to use list()</span>
+        <span class="c"># instead of tee().&quot;</span>
+        <span class="c">#</span>
+        <span class="c"># i.e., `tee` has to store everything into memory because `kvlayer`</span>
+        <span class="c"># will exhaust the first iterator before indexes get updated.</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span>
+                     <span class="o">*</span><span class="n">imap</span><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">):</span> <span class="p">((</span><span class="n">cid</span><span class="p">,),</span> <span class="n">fc_dumps</span><span class="p">(</span><span class="n">fc</span><span class="p">)),</span> <span class="n">items</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">indexes</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">idx_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_index_put</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="o">*</span><span class="n">items</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.delete"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_id</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Delete a feature collection from the store.</span>
+
+<span class="sd">        Deletes the content item from the store with identifier</span>
+<span class="sd">        ``content_id``.</span>
+
+<span class="sd">        :param str content_id: identifier for the content object</span>
+<span class="sd">                               represented by a feature collection</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span> <span class="p">(</span><span class="n">content_id</span><span class="p">,))</span>
+</div>
+<div class="viewcode-block" id="Store.delete_all"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.delete_all">[docs]</a>    <span class="k">def</span> <span class="nf">delete_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Deletes all storage.</span>
+
+<span class="sd">        This includes every content object and all index data.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">clear_table</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">clear_table</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">INDEX_TABLE</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.scan"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.scan">[docs]</a>    <span class="k">def</span> <span class="nf">scan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">key_ranges</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Retrieve feature collections in a range of ids.</span>
+
+<span class="sd">        Returns a generator of content objects corresponding to the</span>
+<span class="sd">        content identifier ranges given. `key_ranges` can be a possibly</span>
+<span class="sd">        empty list of 2-tuples, where the first element of the tuple</span>
+<span class="sd">        is the beginning of a range and the second element is the end</span>
+<span class="sd">        of a range. To specify the beginning or end of the table, use</span>
+<span class="sd">        an empty tuple `()`.</span>
+
+<span class="sd">        If the list is empty, then this yields all content objects in</span>
+<span class="sd">        the storage.</span>
+
+<span class="sd">        :param key_ranges: as described in</span>
+<span class="sd">                           :meth:`kvlayer._abstract_storage.AbstractStorage`</span>
+<span class="sd">        :rtype: generator of</span>
+<span class="sd">                (``content_id``, :class:`dossier.fc.FeatureCollection`).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># (id, id) -&gt; ((id,), (id,))</span>
+        <span class="n">key_ranges</span> <span class="o">=</span> <span class="p">[(</span><span class="n">tuplify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">tuplify</span><span class="p">(</span><span class="n">e</span><span class="p">))</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">key_ranges</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">imap</span><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">):</span> <span class="p">(</span><span class="n">cid</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fc_loads</span><span class="p">(</span><span class="n">fc</span><span class="p">)),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span> <span class="o">*</span><span class="n">key_ranges</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="Store.scan_ids"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.scan_ids">[docs]</a>    <span class="k">def</span> <span class="nf">scan_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">key_ranges</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Retrieve content ids in a range of ids.</span>
+
+<span class="sd">        Returns a generator of ``content_id`` corresponding to the</span>
+<span class="sd">        content identifier ranges given. `key_ranges` can be a possibly</span>
+<span class="sd">        empty list of 2-tuples, where the first element of the tuple</span>
+<span class="sd">        is the beginning of a range and the second element is the end</span>
+<span class="sd">        of a range. To specify the beginning or end of the table, use</span>
+<span class="sd">        an empty tuple `()`.</span>
+
+<span class="sd">        If the list is empty, then this yields all content ids in</span>
+<span class="sd">        the storage.</span>
+
+<span class="sd">        :param key_ranges: as described in</span>
+<span class="sd">                           :meth:`kvlayer._abstract_storage.AbstractStorage`</span>
+<span class="sd">        :rtype: generator of ``content_id``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># (id, id) -&gt; ((id,), (id,))</span>
+        <span class="n">key_ranges</span> <span class="o">=</span> <span class="p">[(</span><span class="n">tuplify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">tuplify</span><span class="p">(</span><span class="n">e</span><span class="p">))</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">key_ranges</span><span class="p">]</span>
+        <span class="n">scanner</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">scan_keys</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TABLE</span><span class="p">,</span> <span class="o">*</span><span class="n">key_ranges</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">imap</span><span class="p">(</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">scanner</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.scan_prefix"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.scan_prefix">[docs]</a>    <span class="k">def</span> <span class="nf">scan_prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns a generator of content objects matching a prefix.</span>
+
+<span class="sd">        The ``prefix`` here is a prefix for ``content_id``.</span>
+
+<span class="sd">        :type prefix: str</span>
+<span class="sd">        :rtype: generator of</span>
+<span class="sd">                (``content_id``, :class:`dossier.fc.FeatureCollection`).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scan</span><span class="p">((</span><span class="n">prefix</span><span class="p">,</span> <span class="n">prefix</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="Store.scan_prefix_ids"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.scan_prefix_ids">[docs]</a>    <span class="k">def</span> <span class="nf">scan_prefix_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns a generator of content ids matching a prefix.</span>
+
+<span class="sd">        The ``prefix`` here is a prefix for ``content_id``.</span>
+
+<span class="sd">        :type prefix: str</span>
+<span class="sd">        :rtype: generator of ``content_id``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scan_ids</span><span class="p">((</span><span class="n">prefix</span><span class="p">,</span> <span class="n">prefix</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="Store.index_scan"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.index_scan">[docs]</a>    <span class="k">def</span> <span class="nf">index_scan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns ids that match an indexed value.</span>
+
+<span class="sd">        Returns a generator of content identifiers that have an entry</span>
+<span class="sd">        in the index ``idx_name`` with value ``val`` (after index</span>
+<span class="sd">        transforms are applied).</span>
+
+<span class="sd">        If the index named by ``idx_name`` is not registered, then a</span>
+<span class="sd">        :exc:`~exceptions.KeyError` is raised.</span>
+
+<span class="sd">        :param unicode idx_name: name of index</span>
+<span class="sd">        :param val: the value to use to search the index</span>
+<span class="sd">        :type val: unspecified (depends on the index, usually ``unicode``)</span>
+<span class="sd">        :rtype: generator of ``content_id``</span>
+<span class="sd">        :raises: :exc:`~exceptions.KeyError`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index</span><span class="p">(</span><span class="n">idx_name</span><span class="p">)[</span><span class="s">&#39;transform&#39;</span><span class="p">]</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx_name</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">),</span> <span class="n">idx</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">scan_keys</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">INDEX_TABLE</span><span class="p">,</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">imap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">keys</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Store.index_scan_prefix"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.index_scan_prefix">[docs]</a>    <span class="k">def</span> <span class="nf">index_scan_prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns ids that match a prefix of an indexed value.</span>
+
+<span class="sd">        Returns a generator of content identifiers that have an entry</span>
+<span class="sd">        in the index ``idx_name`` with prefix ``val_prefix`` (after</span>
+<span class="sd">        index transforms are applied).</span>
+
+<span class="sd">        If the index named by ``idx_name`` is not registered, then a</span>
+<span class="sd">        :exc:`~exceptions.KeyError` is raised.</span>
+
+<span class="sd">        :param unicode idx_name: name of index</span>
+<span class="sd">        :param val_prefix: the value to use to search the index</span>
+<span class="sd">        :type val: unspecified (depends on the index, usually ``unicode``)</span>
+<span class="sd">        :rtype: generator of ``content_id``</span>
+<span class="sd">        :raises: :exc:`~exceptions.KeyError`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_scan_prefix_impl</span><span class="p">(</span>
+            <span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+</div>
+<div class="viewcode-block" id="Store.index_scan_prefix_and_return_key"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.index_scan_prefix_and_return_key">[docs]</a>    <span class="k">def</span> <span class="nf">index_scan_prefix_and_return_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns ids that match a prefix of an indexed value, and the</span>
+<span class="sd">        specific key that matched the search prefix.</span>
+
+<span class="sd">        Returns a generator of (index key, content identifier) that</span>
+<span class="sd">        have an entry in the index ``idx_name`` with prefix</span>
+<span class="sd">        ``val_prefix`` (after index transforms are applied).</span>
+
+<span class="sd">        If the index named by ``idx_name`` is not registered, then a</span>
+<span class="sd">        :exc:`~exceptions.KeyError` is raised.</span>
+
+<span class="sd">        :param unicode idx_name: name of index</span>
+<span class="sd">        :param val_prefix: the value to use to search the index</span>
+<span class="sd">        :type val: unspecified (depends on the index, usually ``unicode``)</span>
+<span class="sd">        :rtype: generator of (``index key``, ``content_id``)</span>
+<span class="sd">        :raises: :exc:`~exceptions.KeyError`</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_scan_prefix_impl</span><span class="p">(</span>
+            <span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+</div>
+    <span class="k">def</span> <span class="nf">_index_scan_prefix_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">,</span> <span class="n">retfunc</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Implementation for index_scan_prefix and</span>
+<span class="sd">        index_scan_prefix_and_return_key, parameterized on return</span>
+<span class="sd">        value function.</span>
+
+<span class="sd">        retfunc gets passed a key tuple from the index:</span>
+<span class="sd">        (index name, index value, content_id)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index</span><span class="p">(</span><span class="n">idx_name</span><span class="p">)[</span><span class="s">&#39;transform&#39;</span><span class="p">]</span>
+        <span class="n">val_prefix</span> <span class="o">=</span> <span class="n">idx</span><span class="p">(</span><span class="n">val_prefix</span><span class="p">)</span>
+
+        <span class="n">idx_name</span> <span class="o">=</span> <span class="n">idx_name</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span><span class="p">)</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">val_prefix</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\xff</span><span class="s">&#39;</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">scan_keys</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">INDEX_TABLE</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">imap</span><span class="p">(</span><span class="n">retfunc</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Store.define_index"><a class="viewcode-back" href="../../../dossier.store.html#dossier.store.Store.define_index">[docs]</a>    <span class="k">def</span> <span class="nf">define_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">create</span><span class="p">,</span> <span class="n">transform</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Add an index to this store instance.</span>
+
+<span class="sd">        Adds an index transform to the current FC store. Once an index</span>
+<span class="sd">        with name ``idx_name`` is added, it will be available in all</span>
+<span class="sd">        ``index_*`` methods. Additionally, the index will be automatically</span>
+<span class="sd">        updated on calls to :meth:`~dossier.fc.store.Store.put`.</span>
+
+<span class="sd">        If an index with name ``idx_name`` already exists, then it is</span>
+<span class="sd">        overwritten.</span>
+
+<span class="sd">        Note that indexes do *not* persist. They must be re-defined for</span>
+<span class="sd">        each instance of :class:`Store`.</span>
+
+<span class="sd">        For example, to add an index on the ``boNAME`` feature, you can</span>
+<span class="sd">        use the ``feature_index`` helper function:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            store.define_index(&#39;boNAME&#39;,</span>
+<span class="sd">                               feature_index(&#39;boNAME&#39;),</span>
+<span class="sd">                               lambda s: s.encode(&#39;utf-8&#39;))</span>
+
+<span class="sd">        Another example for creating an index on names:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            store.define_index(&#39;NAME&#39;,</span>
+<span class="sd">                               feature_index(&#39;canonical_name&#39;, &#39;NAME&#39;),</span>
+<span class="sd">                               lambda s: s.lower().encode(&#39;utf-8&#39;))</span>
+
+<span class="sd">        :param idx_name: The name of the index. Must be UTF-8 encodable.</span>
+<span class="sd">        :type idx_name: unicode</span>
+<span class="sd">        :param create: A function that accepts the ``transform`` function and</span>
+<span class="sd">                       a pair of ``(content_id, fc)`` and produces a generator</span>
+<span class="sd">                       of index values from the pair given using ``transform``.</span>
+<span class="sd">        :param transform: A function that accepts an arbitrary value and</span>
+<span class="sd">                          applies a transform to it. This transforms the</span>
+<span class="sd">                          *stored* value to the *index* value. This *must*</span>
+<span class="sd">                          produce a value with type `str` (or `bytes`).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">))</span>
+        <span class="n">idx_name</span> <span class="o">=</span> <span class="n">idx_name</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="p">[</span><span class="n">idx_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;create&#39;</span><span class="p">:</span> <span class="n">create</span><span class="p">,</span> <span class="s">&#39;transform&#39;</span><span class="p">:</span> <span class="n">transform</span><span class="p">}</span>
+</div>
+    <span class="k">def</span> <span class="nf">index_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns a list of all defined index names.</span>
+
+<span class="sd">        :rtype: list of unicode</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+
+    <span class="c"># These methods are provided if you really need them, but hopefully</span>
+    <span class="c"># `put` is more convenient.</span>
+
+    <span class="k">def</span> <span class="nf">_index_put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="o">*</span><span class="n">ids_and_fcs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Add new index values.</span>
+
+<span class="sd">        Adds new index values for index ``idx_name`` for the pairs</span>
+<span class="sd">        given. Each pair should be a content identifier and a</span>
+<span class="sd">        :class:`dossier.fc.FeatureCollection`.</span>
+
+<span class="sd">        :type idx_name: unicode</span>
+<span class="sd">        :type ids_and_fcs: ``[(content_id, FeatureCollection)]``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_keys_for</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="o">*</span><span class="n">ids_and_fcs</span><span class="p">)</span>
+        <span class="n">with_vals</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s">&#39;0&#39;</span><span class="p">),</span> <span class="n">keys</span><span class="p">)</span>
+        <span class="c"># TODO: use imap when kvl.put takes an iterable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">INDEX_TABLE</span><span class="p">,</span> <span class="o">*</span><span class="n">with_vals</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_index_put_raw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="n">content_id</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Add new raw index values.</span>
+
+<span class="sd">        Adds a new index key corresponding to</span>
+<span class="sd">        ``(idx_name, transform(val), content_id)``.</span>
+
+<span class="sd">        This method bypasses the *creation* of indexes from content</span>
+<span class="sd">        objects, but values are still transformed.</span>
+
+<span class="sd">        :type idx_name: unicode</span>
+<span class="sd">        :type content_id: str</span>
+<span class="sd">        :type val: unspecified (depends on the index, usually ``unicode``)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index</span><span class="p">(</span><span class="n">idx_name</span><span class="p">)[</span><span class="s">&#39;transform&#39;</span><span class="p">]</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx_name</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">),</span> <span class="n">idx</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="n">content_id</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kvl</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">INDEX_TABLE</span><span class="p">,</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s">&#39;0&#39;</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_index_keys_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx_name</span><span class="p">,</span> <span class="o">*</span><span class="n">ids_and_fcs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns a generator of index triples.</span>
+
+<span class="sd">        Returns a generator of index keys for the ``ids_and_fcs`` pairs</span>
+<span class="sd">        given. The index keys have the form ``(idx_name, idx_val,</span>
+<span class="sd">        content_id)``.</span>
+
+<span class="sd">        :type idx_name: unicode</span>
+<span class="sd">        :type ids_and_fcs: ``[(content_id, FeatureCollection)]``</span>
+<span class="sd">        :rtype: generator of ``(str, str, str)``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index</span><span class="p">(</span><span class="n">idx_name</span><span class="p">)</span>
+        <span class="n">icreate</span><span class="p">,</span> <span class="n">itrans</span> <span class="o">=</span> <span class="n">idx</span><span class="p">[</span><span class="s">&#39;create&#39;</span><span class="p">],</span> <span class="n">idx</span><span class="p">[</span><span class="s">&#39;transform&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+            <span class="n">idx_name</span> <span class="o">=</span> <span class="n">idx_name</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">cid_fc</span> <span class="ow">in</span> <span class="n">ids_and_fcs</span><span class="p">:</span>
+            <span class="n">content_id</span> <span class="o">=</span> <span class="n">cid_fc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">index_value</span> <span class="ow">in</span> <span class="n">icreate</span><span class="p">(</span><span class="n">itrans</span><span class="p">,</span> <span class="n">cid_fc</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">index_value</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="p">(</span><span class="n">idx_name</span><span class="p">,</span> <span class="n">index_value</span><span class="p">,</span> <span class="n">content_id</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Returns index transforms for ``name``.</span>
+
+<span class="sd">        :type name: unicode</span>
+<span class="sd">        :rtype: ``{ create |--&gt; function, transform |--&gt; function }``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indexes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&#39;Index &quot;</span><span class="si">%s</span><span class="s">&quot; has not been registered with &#39;</span>
+                           <span class="s">&#39;this FC store.&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
+
+</div>
+<span class="k">def</span> <span class="nf">tuplify</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">v</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">v</span><span class="p">,)</span>
+
+
+<span class="k">def</span> <span class="nf">fc_loads</span><span class="p">(</span><span class="n">raw</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">FeatureCollection</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">snappy</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">raw</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">fc_dumps</span><span class="p">(</span><span class="n">fc</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">snappy</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">fc</span><span class="o">.</span><span class="n">dumps</span><span class="p">())</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

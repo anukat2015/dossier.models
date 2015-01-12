@@ -1,0 +1,304 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.web.interface &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.web.interface</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">abc</span>
+
+
+<div class="viewcode-block" id="SearchEngine"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.SearchEngine">[docs]</a><span class="k">class</span> <span class="nc">SearchEngine</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Defines an interface for search engines.</span>
+
+<span class="sd">    A search engine, at a high level, takes a query feature collection</span>
+<span class="sd">    and returns a list of results, where each result is itself a</span>
+<span class="sd">    feature collection.</span>
+
+<span class="sd">    More generally, a search engine is a :class:`yakonfig.Configurable`</span>
+<span class="sd">    object (or one that can be auto-configured) that returns a callable</span>
+<span class="sd">    that performs the actual searching.</span>
+
+<span class="sd">    Here&#39;s an example of a simple search engine that returns the</span>
+<span class="sd">    results of an index scan:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        def search_by_name(store):</span>
+<span class="sd">            def _(content_id, filter_pred, limit):</span>
+<span class="sd">                fc = store.get(content_id)</span>
+<span class="sd">                cids = []</span>
+<span class="sd">                for name in fc.get(u&#39;NAME&#39;):</span>
+<span class="sd">                    cids.extend(store.index_scan(u&#39;NAME&#39;, name))</span>
+<span class="sd">                results = list(filter(filter_pred, store.get_many(cids)))</span>
+<span class="sd">                return {</span>
+<span class="sd">                    &#39;results&#39;: results[0:int(limit)],</span>
+<span class="sd">                }</span>
+<span class="sd">            return _</span>
+
+<span class="sd">    .. automethod:: dossier.web.SearchEngine.__init__</span>
+<span class="sd">    .. automethod:: dossier.web.SearchEngine.__call__</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="nd">@abc.abstractmethod</span>
+<div class="viewcode-block" id="SearchEngine.__init__"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.SearchEngine.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a new search engine.</span>
+
+<span class="sd">        The creation of a search engine is distinct from the operation</span>
+<span class="sd">        of a search engine. Namely, the creation of a search engine</span>
+<span class="sd">        is subject to dependency injection. The following parameters</span>
+<span class="sd">        are special in that they will be automatically populated with</span>
+<span class="sd">        special values if present in your ``__init__``:</span>
+
+<span class="sd">        * **kvlclient**:</span>
+<span class="sd">          :class:`kvlayer._abstract_storage.AbstractStorage`</span>
+<span class="sd">        * **store**: :class:`dossier.store.Store`</span>
+<span class="sd">        * **label_store**: :class:`dossier.label.LabelStore`</span>
+
+<span class="sd">        :rtype: A callable with a signature isomorphic to</span>
+<span class="sd">                :meth:`dossier.web.SearchEngine.__call__`.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+</div>
+    <span class="nd">@abc.abstractmethod</span>
+<div class="viewcode-block" id="SearchEngine.__call__"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.SearchEngine.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">filter_pred</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Run a search engine.</span>
+
+<span class="sd">        This method runs a search engine with the query ``content_id``</span>
+<span class="sd">        and returns a result set of feature collections.</span>
+
+<span class="sd">        ``content_id`` will correspond to a feature collection</span>
+<span class="sd">        accessible via a :class:`dossier.store.Store`. Note</span>
+<span class="sd">        that ``content_id`` may not point to any existing</span>
+<span class="sd">        :class:`dossier.fc.FeatureCollection`. If a feature collection</span>
+<span class="sd">        does not exist, a search engine may invent one or simply return</span>
+<span class="sd">        no results.</span>
+
+<span class="sd">        ``filter_pred`` is a predicate that returns ``True`` given a</span>
+<span class="sd">        (``content_id``, :class:`dossier.fc.FeatureCollection`) if and</span>
+<span class="sd">        only if that object should appear in the results.  Typically,</span>
+<span class="sd">        this filtering predicate is used to make sure already labeled</span>
+<span class="sd">        feature collections don&#39;t re-appear.</span>
+
+<span class="sd">        ``limit`` is an integer that determines how many results the</span>
+<span class="sd">        user wants to handle. Search engines may assume that this is</span>
+<span class="sd">        capped at a reasonable maximum.</span>
+
+<span class="sd">        Finally, any additional query parameters in the URL are passed</span>
+<span class="sd">        as keyword arguments, which will all be strings.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+</div></div>
+<div class="viewcode-block" id="Filter"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.Filter">[docs]</a><span class="k">class</span> <span class="nc">Filter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A filter predicate for results returned by search engines.</span>
+
+<span class="sd">    A filter predicate is a :class:`yakonfig.Configurable` object</span>
+<span class="sd">    (or one that can be auto-configured) that returns a callable</span>
+<span class="sd">    for creating a predicate that will filter results produced by</span>
+<span class="sd">    a search engine.</span>
+
+<span class="sd">    The predicate should be a function that accepts a tuple</span>
+<span class="sd">    (``content_id``, :class:`dossier.fc.FeatureCollection`) and returns</span>
+<span class="sd">    ``True`` if and only if that result should be included in the</span>
+<span class="sd">    recommendations presented to the user.</span>
+
+<span class="sd">    Here is how the :func:`dossier.web.filter_already_labeled` filter</span>
+<span class="sd">    is written:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        def already_labeled(label_store):</span>
+<span class="sd">            def init_filter(query_content_id):</span>
+<span class="sd">                labeled = label_store.directly_connected(</span>
+<span class="sd">                    query_content_id)</span>
+<span class="sd">                labeled_cids = {label.other(query_content_id)</span>
+<span class="sd">                                for label in labeled}</span>
+<span class="sd">                def p((content_id, fc)):</span>
+<span class="sd">                    return content_id not in labeled_cids</span>
+<span class="sd">                return p</span>
+<span class="sd">            return init_filter</span>
+
+<span class="sd">    Note that fetching all of the labels before running the predicate</span>
+<span class="sd">    is critical for this to perform well.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="nd">@abc.abstractmethod</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a new filter.</span>
+
+<span class="sd">        The creation of a filter is distinct from the operation of</span>
+<span class="sd">        a filter. Namely, the creation of a filter is subject to</span>
+<span class="sd">        dependency injection. The following parameters are special in</span>
+<span class="sd">        that they will be automatically populated with special values</span>
+<span class="sd">        if present in your ``__init__``:</span>
+
+<span class="sd">        * **kvlclient**:</span>
+<span class="sd">          :class:`kvlayer._abstract_storage.AbstractStorage`</span>
+<span class="sd">        * **store**: :class:`dossier.store.Store`</span>
+<span class="sd">        * **label_store**: :class:`dossier.label.LabelStore`</span>
+
+<span class="sd">        :rtype: A callable with a signature isomorphic to</span>
+<span class="sd">                :meth:`dossier.web.Filter.__call__`.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+    <span class="nd">@abc.abstractmethod</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_content_id</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a filter predicate function.</span>
+
+<span class="sd">        The reason for the extra level of indirection is so that you</span>
+<span class="sd">        may run &quot;initialization&quot; code for a particular query. See</span>
+<span class="sd">        :meth:`dossier.web.Filter` for an example.</span>
+
+<span class="sd">        :param str query_content_id: The content id of the query.</span>
+<span class="sd">                                     This *may* correspond to an existing</span>
+<span class="sd">                                     feature collection.</span>
+<span class="sd">        :rtype: A function with type</span>
+<span class="sd">                ``(content_id, FeatureCollection) -&gt; bool``.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="Route"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.Route">[docs]</a><span class="k">class</span> <span class="nc">Route</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Defines an interface for web routes.</span>
+
+<span class="sd">    A web route is a function that receives HTTP requests and returns</span>
+<span class="sd">    HTTP responses.</span>
+
+<span class="sd">    You may add your own routes to a ``dossier.web`` application by</span>
+<span class="sd">    defining Python objects that conform to the interface defined here</span>
+<span class="sd">    (they do not need to subclass this class).</span>
+
+<span class="sd">    .. automethod:: dossier.web.Route.__init__</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="nd">@abc.abstractmethod</span>
+<div class="viewcode-block" id="Route.__init__"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.Route.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bottle_app</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Add routes to an existing Bottle application.</span>
+
+<span class="sd">        This interface permits one to add new routes to the</span>
+<span class="sd">        Bottle application used by ``dossier.web``. For example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            def my_route(bottle_app):</span>
+<span class="sd">                @bottle_app.get(&#39;/visit-me&#39;)</span>
+<span class="sd">                def bottle_route():</span>
+<span class="sd">                    return &#39;Hello, world!&#39;</span>
+
+<span class="sd">            # Use it in the application.</span>
+<span class="sd">            _, app = get_application(routes=[my_route])</span>
+
+<span class="sd">        ``dossier.web`` also configures dependency injection for your</span>
+<span class="sd">        routes. The following is a list of special parameter names that</span>
+<span class="sd">        can appear in your route function. They will be automatically</span>
+<span class="sd">        populated with values of the following types:</span>
+
+<span class="sd">        * **config**: :class:`dossier.web.Config`</span>
+<span class="sd">        * **kvlclient**:</span>
+<span class="sd">          :class:`kvlayer._abstract_storage.AbstractStorage`</span>
+<span class="sd">        * **store**: :class:`dossier.store.Store`</span>
+<span class="sd">        * **label_store**: :class:`dossier.label.LabelStore`</span>
+<span class="sd">        * **search_engines**: ``list`` of search engines (which are</span>
+<span class="sd">          duck typed to :class:`dossier.web.SearchEngine`).</span>
+<span class="sd">        * **filter_preds**: ``list`` of filter predicates (which are</span>
+<span class="sd">          duck typed to :class:`dossier.web.Filter`).</span>
+<span class="sd">        * **request**: :class:`bottle.Request`</span>
+<span class="sd">        * **response**: :class:`bottle.Response`</span>
+
+<span class="sd">        :param bottle_app: A Bottle application.</span>
+<span class="sd">        :type bottle_app: :class:`bottle.Bottle`</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

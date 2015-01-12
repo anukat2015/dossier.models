@@ -1,0 +1,257 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.web.run &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.web.run</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;dossier.web.run</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">This is the &quot;main&quot; function of ``dossier.web``. Generally, you won&#39;t use</span>
+<span class="sd">it directly, but instead import ``get_application`` from ``dossier.web``</span>
+<span class="sd">and run your web application from your script.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">bottle</span>
+
+<span class="kn">import</span> <span class="nn">dblogger</span>
+<span class="kn">import</span> <span class="nn">kvlayer</span>
+<span class="kn">import</span> <span class="nn">yakonfig</span>
+<span class="kn">import</span> <span class="nn">yakonfig.factory</span>
+
+<span class="kn">from</span> <span class="nn">dossier.web</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">dossier.web.filter_preds</span> <span class="kn">import</span> <span class="n">already_labeled</span>
+<span class="kn">from</span> <span class="nn">dossier.web.routes</span> <span class="kn">import</span> <span class="n">app</span>
+<span class="kn">from</span> <span class="nn">dossier.web</span> <span class="kn">import</span> <span class="n">search_engines</span> <span class="k">as</span> <span class="n">builtin_engines</span>
+
+
+<div class="viewcode-block" id="get_application"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.get_application">[docs]</a><span class="k">def</span> <span class="nf">get_application</span><span class="p">(</span><span class="n">routes</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">search_engines</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                    <span class="n">filter_preds</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">more_configurables</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                    <span class="n">label_hooks</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Build and return a Bottle WSGI compatible application.</span>
+
+<span class="sd">    The application returned is a ``Bottle`` app, which means you run it</span>
+<span class="sd">    using Bottle&#39;s ``run`` method. Alternatively, you could name the</span>
+<span class="sd">    returned app as ``application``, and it would runnable from any</span>
+<span class="sd">    WSGI web server (e.g., ``gunicorn`` or ``uwsgi``).</span>
+
+<span class="sd">    There are several optional parameters that let you inject your own</span>
+<span class="sd">    routes, search engines and rank filters into :mod:`dossier.web`.</span>
+
+<span class="sd">    :param routes: Your own Bottle routes.</span>
+<span class="sd">    :type routes: ``list`` of :class:`dossier.web.Route`</span>
+<span class="sd">    :param search_engines: Your own search engines. If not present, a single</span>
+<span class="sd">                           ``random`` search engine will be available.</span>
+<span class="sd">    :type search_engines: ``dict`` of ``name`` to</span>
+<span class="sd">                          :class:`dossier.web.SearchEngine`</span>
+<span class="sd">    :param filter_preds: Your own filter predicates. If not present, a single</span>
+<span class="sd">                         ``already_labeled`` filter is always applied.</span>
+<span class="sd">    :type filter_preds: ``dict`` of ``name`` to :class:`dossier.web.Filter`.</span>
+<span class="sd">    :rtype: (:class:`argparse.Namespace`, :class:`bottle.Bottle`)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">routes</span> <span class="o">=</span> <span class="n">routes</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="n">more_configurables</span> <span class="o">=</span> <span class="n">more_configurables</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="n">label_hooks</span> <span class="o">=</span> <span class="n">label_hooks</span> <span class="ow">or</span> <span class="p">[]</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s">&#39;Run DossierStack web services.&#39;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--bottle-debug&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s">&#39;store_true&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s">&#39;Enable Bottle</span><span class="se">\&#39;</span><span class="s">s debug mode.&#39;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--reload&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s">&#39;store_true&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s">&#39;Enable Bottle</span><span class="se">\&#39;</span><span class="s">s reloading functionality.&#39;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--port&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">8080</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--host&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;localhost&#39;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--server&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;wsgiref&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s">&#39;The web server to use. You only need to change this &#39;</span>
+                        <span class="s">&#39;if you</span><span class="se">\&#39;</span><span class="s">re running a production server.&#39;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--show-available-servers&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s">&#39;store_true&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s">&#39;Shows list of available web server names and quits.&#39;</span><span class="p">)</span>
+
+    <span class="n">web_conf</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">Config</span><span class="p">()</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">yakonfig</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">[</span><span class="n">web_conf</span><span class="p">,</span> <span class="n">dblogger</span><span class="p">,</span> <span class="n">kvlayer</span><span class="p">,</span> <span class="n">yakonfig</span><span class="p">]</span> <span class="o">+</span>
+                               <span class="n">more_configurables</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">show_available_servers</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">bottle</span><span class="o">.</span><span class="n">server_names</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">__import__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">configure_app</span><span class="p">(</span><span class="n">web_conf</span><span class="p">,</span> <span class="n">search_engines</span><span class="p">,</span> <span class="n">filter_preds</span><span class="p">,</span> <span class="n">label_hooks</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">add_routes</span> <span class="ow">in</span> <span class="n">routes</span><span class="p">:</span>
+        <span class="n">add_routes</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">web_conf</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;url_prefix&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">root_app</span> <span class="o">=</span> <span class="n">bottle</span><span class="o">.</span><span class="n">Bottle</span><span class="p">()</span>
+        <span class="n">root_app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">web_conf</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;url_prefix&#39;</span><span class="p">],</span> <span class="n">app</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="n">root_app</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="n">app</span>
+
+
+<span class="c"># note that `app` is global from dossier.web.routes</span></div>
+<span class="k">def</span> <span class="nf">configure_app</span><span class="p">(</span><span class="n">web_conf</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">search_engines</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                  <span class="n">filter_preds</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">label_hooks</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">web_conf</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">web_conf</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">Config</span><span class="p">()</span>
+    <span class="n">search_engines</span> <span class="o">=</span> <span class="n">search_engines</span> <span class="ow">or</span> <span class="p">{</span>
+        <span class="s">&#39;random&#39;</span><span class="p">:</span> <span class="n">builtin_engines</span><span class="o">.</span><span class="n">random</span><span class="p">,</span>
+        <span class="s">&#39;plain_index_scan&#39;</span><span class="p">:</span> <span class="n">builtin_engines</span><span class="o">.</span><span class="n">plain_index_scan</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">filter_preds</span> <span class="o">=</span> <span class="n">filter_preds</span> <span class="ow">or</span> <span class="p">{</span><span class="s">&#39;already_labeled&#39;</span><span class="p">:</span> <span class="n">already_labeled</span><span class="p">}</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">JsonPlugin</span><span class="p">())</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;config&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">web_conf</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;kvlclient&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">web_conf</span><span class="o">.</span><span class="n">kvlclient</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;store&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">web_conf</span><span class="o">.</span><span class="n">store</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;label_store&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">web_conf</span><span class="o">.</span><span class="n">label_store</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;search_engines&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">search_engines</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;label_hooks&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">label_hooks</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;filter_preds&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">filter_preds</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;request&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">bottle</span><span class="o">.</span><span class="n">request</span><span class="p">))</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">create_injector</span><span class="p">(</span><span class="s">&#39;response&#39;</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">bottle</span><span class="o">.</span><span class="n">response</span><span class="p">))</span>
+
+    <span class="nd">@app.hook</span><span class="p">(</span><span class="s">&#39;after_request&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">enable_cors</span><span class="p">():</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Access-Control-Allow-Origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;*&#39;</span>
+
+    <span class="nd">@app.error</span><span class="p">(</span><span class="mi">405</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">method_not_allowed</span><span class="p">(</span><span class="n">res</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bottle</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s">&#39;OPTIONS&#39;</span><span class="p">:</span>
+            <span class="n">new_res</span> <span class="o">=</span> <span class="n">bottle</span><span class="o">.</span><span class="n">HTTPResponse</span><span class="p">()</span>
+            <span class="n">new_res</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Access-Control-Allow-Origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;*&#39;</span>
+            <span class="n">new_res</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Access-Control-Allow-Methods&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">bottle</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="s">&#39;Access-Control-Request-Method&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">new_res</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Access-Control-Allow-Headers&#39;</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">bottle</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="s">&#39;Access-Control-Request-Headers&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">new_res</span>
+        <span class="n">res</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Allow&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="s">&#39;, OPTIONS&#39;</span>
+        <span class="k">return</span> <span class="n">bottle</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">default_error_handler</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">app</span>
+
+
+<span class="k">def</span> <span class="nf">run_with_argv</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">app</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">server</span> <span class="o">==</span> <span class="s">&#39;gevent&#39;</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">gevent.monkey</span>
+        <span class="n">gevent</span><span class="o">.</span><span class="n">monkey</span><span class="o">.</span><span class="n">patch_all</span><span class="p">()</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">server</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+            <span class="n">debug</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bottle_debug</span><span class="p">,</span> <span class="n">reloader</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">reload</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">run_with_argv</span><span class="p">(</span><span class="o">*</span><span class="n">get_application</span><span class="p">())</span>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

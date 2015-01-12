@@ -1,0 +1,401 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>yakonfig.factory &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for yakonfig.factory</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+
+<span class="kn">from</span> <span class="nn">yakonfig.configurable</span> <span class="kn">import</span> <span class="n">Configurable</span>
+<span class="kn">from</span> <span class="nn">yakonfig.exceptions</span> <span class="kn">import</span> <span class="n">ConfigurationError</span><span class="p">,</span> <span class="n">ProgrammerError</span>
+
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">strtype</span> <span class="o">=</span> <span class="nb">basestring</span>
+<span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+    <span class="n">strtype</span> <span class="o">=</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">AutoFactory</span> <span class="p">(</span><span class="n">Configurable</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A factory for *discovering* configuration from functions, methods</span>
+<span class="sd">    or classes.</span>
+
+<span class="sd">    Clients that subclass :class:`AutoFactory` must implement the</span>
+<span class="sd">    :attr:`auto_config` property, which should be an iterable of</span>
+<span class="sd">    things to automatically a configuration from. Notably, subclasses</span>
+<span class="sd">    should *not* implement :attr:`~yakonfig.Configurable.sub_modules`,</span>
+<span class="sd">    as this class provides its own implementation of it using</span>
+<span class="sd">    :attr:`auto_config`.</span>
+
+<span class="sd">    This class hooks into the :mod:`yakonfig` configuration sequence</span>
+<span class="sd">    to capture its part of the configuration at startup time.  If</span>
+<span class="sd">    this class is used outside the standard sequence, then you must</span>
+<span class="sd">    set :attr:`config` before calling :meth:`create`.</span>
+
+<span class="sd">    Currently, this class does **not** support a hierarchical</span>
+<span class="sd">    configuration: items in :attr:`auto_config` may not be</span>
+<span class="sd">    :class:`~yakonfig.Configurable`, and :class:`AutoFactory` objects</span>
+<span class="sd">    may not be nested.  This is likely to change in the future.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a new object factory.</span>
+
+<span class="sd">        If `config` is :const:`None` (the default), then the</span>
+<span class="sd">        :attr:`config` property must be set before calling</span>
+<span class="sd">        :meth:`create`.  Passing this factory object to</span>
+<span class="sd">        :func:`yakonfig.parse_args` or a similar high-level</span>
+<span class="sd">        :mod:`yakonfig` setup method will also accomplish this.</span>
+
+<span class="sd">        :param dict config: local configuration dictionary (if available)</span>
+<span class="sd">        </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AutoFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">sub_modules</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">AutoConfigured</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">auto_config</span><span class="p">]</span>
+
+    <span class="nd">@abc.abstractproperty</span>
+    <span class="k">def</span> <span class="nf">auto_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Must return a list of objects to automatically configure.</span>
+
+<span class="sd">        This list is interpreted shallowly. That is, all configuration</span>
+<span class="sd">        from each object is discovered through its name and parameter</span>
+<span class="sd">        list only. Everything else is ignored.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+
+    <span class="k">def</span> <span class="nf">check_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_modules</span><span class="p">:</span>
+            <span class="n">child</span><span class="o">.</span><span class="n">check_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">normalize_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Rewrite (and capture) the configuration of this object.&#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Saved configuration for the factory and its sub-objects.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                <span class="s">&#39;Tried to access saved factory configuration before &#39;</span>
+                <span class="s">&#39;yakonfig configuration was run.&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span>
+    <span class="nd">@config.setter</span>
+    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">new_config</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">new_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Hook called when the configuration changes.</span>
+
+<span class="sd">        If factory implementations keep properties that are created</span>
+<span class="sd">        from the configuration, this is a place to create or reset them.</span>
+<span class="sd">        The base class implementation does nothing.</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">configurable</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create a sub-object of this factory.</span>
+
+<span class="sd">        Instantiates the `configurable` object with the current saved</span>
+<span class="sd">        :attr:`config`.  This essentially translates to</span>
+<span class="sd">        ``configurable(**config)``, except services defined in the</span>
+<span class="sd">        parent and requested by `configurable` (by setting the</span>
+<span class="sd">        ``services`` attribute) are injected. If a service is not</span>
+<span class="sd">        defined on this factory object, then a</span>
+<span class="sd">        :exc:`yakonfig.ProgrammerError` is raised.</span>
+
+<span class="sd">        If `config` is provided, it is a local configuration for</span>
+<span class="sd">        `configurable`, and it overrides the saved local configuration</span>
+<span class="sd">        (if any).  If not provided, then :attr:`config` must already be</span>
+<span class="sd">        set, possibly by passing this object into the :mod:`yakonfig`</span>
+<span class="sd">        top-level setup sequence.</span>
+
+<span class="sd">        :param callable configurable: object to create</span>
+<span class="sd">        :param dict config: local configuration for `configurable`</span>
+<span class="sd">        :param kwargs: additional keyword parameters</span>
+<span class="sd">        :return: ``configurable(**config)``</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># If we got passed a string, find the thing to make.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">configurable</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">ac</span> <span class="k">for</span> <span class="n">ac</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_modules</span>
+                          <span class="k">if</span> <span class="n">ac</span><span class="o">.</span><span class="n">config_name</span> <span class="o">==</span> <span class="n">configurable</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="n">configurable</span><span class="p">)</span>
+            <span class="n">configurable</span> <span class="o">=</span> <span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c"># Regenerate the configuration ifneedbe.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">configurable</span><span class="p">,</span> <span class="n">AutoConfigured</span><span class="p">):</span>
+            <span class="n">configurable</span> <span class="o">=</span> <span class="n">AutoConfigured</span><span class="p">(</span><span class="n">configurable</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">configurable</span><span class="o">.</span><span class="n">config_name</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="c"># shallow-copy config and append kwargs to it</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">other</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">configurable</span><span class="p">,</span> <span class="s">&#39;services&#39;</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="c"># AutoConfigured.check_config() validates that this key</span>
+            <span class="c"># wasn&#39;t in the global config, so this must have come from</span>
+            <span class="c"># either our own config parameter, a keyword arg, or</span>
+            <span class="c"># the caller setting factory.config; trust those paths.</span>
+            <span class="k">if</span> <span class="n">other</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+                <span class="c"># We&#39;re not catching an `AttributeError` exception here because</span>
+                <span class="c"># it may case a net too wide which makes debugging underlying</span>
+                <span class="c"># errors more difficult.</span>
+                <span class="n">config</span><span class="p">[</span><span class="n">other</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">configurable</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">AutoConfigured</span> <span class="p">(</span><span class="n">Configurable</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This is an **unexported** wrapper class that provides an</span>
+<span class="sd">    implementation that satisfies :class:`yakonfig.Configurable`</span>
+<span class="sd">    for objects that can have their configuration automatically</span>
+<span class="sd">    discovered.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_discovered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discover_config</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discovered</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_services</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discovered</span><span class="p">[</span><span class="s">&#39;required&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discovered</span><span class="p">[</span><span class="s">&#39;defaults&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config_name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">services</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_services</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">default_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_config</span>
+
+    <span class="k">def</span> <span class="nf">check_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">):</span>
+        <span class="c"># This is assuming that `config` is the config dictionary of</span>
+        <span class="c"># the *config parent*. That is, `config[self.config_name]`</span>
+        <span class="c"># exists.</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_name</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">extras</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_config</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">extras</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="s">&#39;Unsupported config options for &quot;</span><span class="si">%s</span><span class="s">&quot;: </span><span class="si">%s</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_name</span><span class="p">,</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">extras</span><span class="p">)))</span>
+
+        <span class="n">missing</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_config</span><span class="p">)</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">extras</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="s">&#39;Missing config options for &quot;</span><span class="si">%s</span><span class="s">&quot;: </span><span class="si">%s</span><span class="s">&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_name</span><span class="p">,</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)))</span>
+
+        <span class="k">for</span> <span class="n">other</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">services</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">other</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+                <span class="c"># I don&#39;t know what the right thing to do is here,</span>
+                <span class="c"># so be conservative and raise an error.</span>
+                <span class="c">#</span>
+                <span class="c"># N.B. I don&#39;t think this can happen when using auto-config</span>
+                <span class="c"># because Python will not let you have `arg` and `arg=val`</span>
+                <span class="c"># in the same parameter list. (`discover_config`, below,</span>
+                <span class="c"># guarantees that positional and named parameters are </span>
+                <span class="c"># disjoint.)</span>
+                <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                    <span class="s">&#39;Configured object &quot;</span><span class="si">%s</span><span class="s">&quot; expects a &#39;</span>
+                    <span class="s">&#39;&quot;</span><span class="si">%s</span><span class="s">&quot; object to be available (from its &#39;</span>
+                    <span class="s">&#39;parameter list), but &quot;</span><span class="si">%s</span><span class="s">&quot; is already &#39;</span>
+                    <span class="s">&#39;defined as &quot;</span><span class="si">%s</span><span class="s">&quot; in its configuration.&#39;</span>
+                    <span class="o">%</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">other</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">config</span><span class="p">[</span><span class="n">other</span><span class="p">]))</span>
+
+    <span class="k">def</span> <span class="nf">_discover_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Given an object at ``self.obj``, which must be a function,</span>
+<span class="sd">        method or class, return a configuration *discovered* from</span>
+<span class="sd">        the name of the object and its parameter list. This function</span>
+<span class="sd">        is responsible for doing runtime reflection and providing</span>
+<span class="sd">        understandable failure modes.</span>
+
+<span class="sd">        The return value is a dictionary with three keys: ``name``,</span>
+<span class="sd">        ``required`` and ``defaults``. ``name`` is the name of the</span>
+<span class="sd">        function/method/class. ``required`` is a list of parameters</span>
+<span class="sd">        *without* default values. ``defaults`` is a dictionary mapping</span>
+<span class="sd">        parameter names to default values. The sets of parameter names in</span>
+<span class="sd">        ``required`` and ``defaults`` are disjoint.</span>
+
+<span class="sd">        When given a class, the parameters are taken from its ``__init__``</span>
+<span class="sd">        method.</span>
+
+<span class="sd">        Note that this function is purposefully conservative in the things</span>
+<span class="sd">        that is will auto-configure. All of the following things will result</span>
+<span class="sd">        in a :exc:`yakonfig.ProgrammerError` exception being raised:</span>
+
+<span class="sd">        1. A parameter list that contains tuple unpacking. (This is invalid</span>
+<span class="sd">           syntax in Python 3.)</span>
+<span class="sd">        2. A parameter list that contains variable arguments (``*args``) or</span>
+<span class="sd">           variable keyword words (``**kwargs``). This restriction forces</span>
+<span class="sd">           an auto-configurable to explicitly state all configuration.</span>
+
+<span class="sd">        Similarly, if given an object that isn&#39;t a function/method/class, a</span>
+<span class="sd">        :exc:`yakonfig.ProgrammerError` will be raised.</span>
+
+<span class="sd">        If reflection cannot be performed on ``obj``, then a ``TypeError``</span>
+<span class="sd">        is raised.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span>
+        <span class="n">skip_params</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span>
+            <span class="n">inspect_obj</span> <span class="o">=</span> <span class="n">obj</span>
+            <span class="n">skip_params</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">elif</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">im_func</span><span class="o">.</span><span class="n">__name__</span>
+            <span class="n">inspect_obj</span> <span class="o">=</span> <span class="n">obj</span>
+            <span class="n">skip_params</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c"># self</span>
+        <span class="k">elif</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+            <span class="n">inspect_obj</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;__dict__&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="s">&#39;__new__&#39;</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">__dict__</span><span class="p">:</span>
+                <span class="n">inspect_obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__new__</span>
+            <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;__init__&#39;</span><span class="p">):</span>
+                <span class="n">inspect_obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__init__</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                    <span class="s">&#39;Class &quot;</span><span class="si">%s</span><span class="s">&quot; does not have a &quot;__new__&quot; or &quot;__init__&quot; &#39;</span>
+                    <span class="s">&#39;method, so it cannot be auto configured.&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;config_name&#39;</span><span class="p">):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">config_name</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">inspect_obj</span><span class="p">)</span> \
+                    <span class="ow">and</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">inspect_obj</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                    <span class="s">&#39;&quot;</span><span class="si">%s</span><span class="s">.</span><span class="si">%s</span><span class="s">&quot; is not a method/function (it is a &quot;</span><span class="si">%s</span><span class="s">&quot;).&#39;</span>
+                    <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">inspect_obj</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">inspect_obj</span><span class="p">)))</span>
+            <span class="n">skip_params</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c"># self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                <span class="s">&#39;Expected a function, method or class to &#39;</span>
+                <span class="s">&#39;automatically configure, but got a &quot;</span><span class="si">%s</span><span class="s">&quot; &#39;</span>
+                <span class="s">&#39;(type: &quot;</span><span class="si">%s</span><span class="s">&quot;).&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)))</span>
+
+        <span class="n">argspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">inspect_obj</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">argspec</span><span class="o">.</span><span class="n">varargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">argspec</span><span class="o">.</span><span class="n">keywords</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                <span class="s">&#39;The auto-configurable &quot;</span><span class="si">%s</span><span class="s">&quot; cannot contain &#39;</span>
+                <span class="s">&#39;&quot;*args&quot; or &quot;**kwargs&quot; in its list of &#39;</span>
+                <span class="s">&#39;parameters.&#39;</span> <span class="o">%</span> <span class="nb">repr</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">strtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ProgrammerError</span><span class="p">(</span>
+                <span class="s">&#39;Expected an auto-configurable with no nested &#39;</span>
+                <span class="s">&#39;parameters, but &quot;</span><span class="si">%s</span><span class="s">&quot; seems to contain some &#39;</span>
+                <span class="s">&#39;tuple unpacking: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span>
+                <span class="o">%</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+        <span class="n">defaults</span> <span class="o">=</span> <span class="n">argspec</span><span class="o">.</span><span class="n">defaults</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="c"># The index into `argspec.args` at which keyword arguments with default</span>
+        <span class="c"># values starts.</span>
+        <span class="n">i_defaults</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">defaults</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+            <span class="s">&#39;required&#39;</span><span class="p">:</span> <span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">skip_params</span><span class="p">:</span><span class="n">i_defaults</span><span class="p">],</span>
+            <span class="s">&#39;defaults&#39;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">defaults</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">argspec</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i_defaults</span><span class="p">:])},</span>
+        <span class="p">}</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

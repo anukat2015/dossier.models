@@ -1,0 +1,637 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>5. dossier.web — DossierStack web services &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="index.html" />
+    <link rel="prev" title="4. dossier.models — Active learning" href="dossier.models.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.models.html" title="4. dossier.models — Active learning"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-dossier.web">
+<span id="dossier-web-dossierstack-web-services"></span><h1>5. <a class="reference internal" href="#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a> &#8212; DossierStack web services<a class="headerlink" href="#module-dossier.web" title="Permalink to this headline">¶</a></h1>
+<p>dossier.web provides REST web services for Dossier Stack</p>
+<dl class="function">
+<dt id="dossier.web.get_application">
+<code class="descclassname">dossier.web.</code><code class="descname">get_application</code><span class="sig-paren">(</span><em>routes=None</em>, <em>search_engines=None</em>, <em>filter_preds=None</em>, <em>more_configurables=None</em>, <em>label_hooks=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/run.html#get_application"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.get_application" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build and return a Bottle WSGI compatible application.</p>
+<p>The application returned is a <code class="docutils literal"><span class="pre">Bottle</span></code> app, which means you run it
+using Bottle&#8217;s <code class="docutils literal"><span class="pre">run</span></code> method. Alternatively, you could name the
+returned app as <code class="docutils literal"><span class="pre">application</span></code>, and it would runnable from any
+WSGI web server (e.g., <code class="docutils literal"><span class="pre">gunicorn</span></code> or <code class="docutils literal"><span class="pre">uwsgi</span></code>).</p>
+<p>There are several optional parameters that let you inject your own
+routes, search engines and rank filters into <a class="reference internal" href="#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>routes</strong> (<code class="docutils literal"><span class="pre">list</span></code> of <a class="reference internal" href="#dossier.web.Route" title="dossier.web.Route"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.Route</span></code></a>) &#8211; Your own Bottle routes.</li>
+<li><strong>search_engines</strong> (<code class="docutils literal"><span class="pre">dict</span></code> of <code class="docutils literal"><span class="pre">name</span></code> to
+<a class="reference internal" href="#dossier.web.SearchEngine" title="dossier.web.SearchEngine"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.SearchEngine</span></code></a>) &#8211; Your own search engines. If not present, a single
+<code class="docutils literal"><span class="pre">random</span></code> search engine will be available.</li>
+<li><strong>filter_preds</strong> (<code class="docutils literal"><span class="pre">dict</span></code> of <code class="docutils literal"><span class="pre">name</span></code> to <a class="reference internal" href="#dossier.web.Filter" title="dossier.web.Filter"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.Filter</span></code></a>.) &#8211; Your own filter predicates. If not present, a single
+<code class="docutils literal"><span class="pre">already_labeled</span></code> filter is always applied.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">(<a class="reference external" href="http://docs.python.org/library/argparse.html#argparse.Namespace" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">argparse.Namespace</span></code></a>, <code class="xref py py-class docutils literal"><span class="pre">bottle.Bottle</span></code>)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.SearchEngine">
+<code class="descclassname">dossier.web.</code><code class="descname">SearchEngine</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#SearchEngine"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.SearchEngine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines an interface for search engines.</p>
+<p>A search engine, at a high level, takes a query feature collection
+and returns a list of results, where each result is itself a
+feature collection.</p>
+<p>More generally, a search engine is a <code class="xref py py-class docutils literal"><span class="pre">yakonfig.Configurable</span></code>
+object (or one that can be auto-configured) that returns a callable
+that performs the actual searching.</p>
+<p>Here&#8217;s an example of a simple search engine that returns the
+results of an index scan:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">search_by_name</span><span class="p">(</span><span class="n">store</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_</span><span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">filter_pred</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">content_id</span><span class="p">)</span>
+        <span class="n">cids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">fc</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">u&#39;NAME&#39;</span><span class="p">):</span>
+            <span class="n">cids</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">index_scan</span><span class="p">(</span><span class="s">u&#39;NAME&#39;</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="n">filter_pred</span><span class="p">,</span> <span class="n">store</span><span class="o">.</span><span class="n">get_many</span><span class="p">(</span><span class="n">cids</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s">&#39;results&#39;</span><span class="p">:</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="nb">int</span><span class="p">(</span><span class="n">limit</span><span class="p">)],</span>
+        <span class="p">}</span>
+    <span class="k">return</span> <span class="n">_</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="dossier.web.SearchEngine.__init__">
+<code class="descclassname">SearchEngine.</code><code class="descname">__init__</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#SearchEngine.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.SearchEngine.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new search engine.</p>
+<p>The creation of a search engine is distinct from the operation
+of a search engine. Namely, the creation of a search engine
+is subject to dependency injection. The following parameters
+are special in that they will be automatically populated with
+special values if present in your <code class="docutils literal"><span class="pre">__init__</span></code>:</p>
+<ul class="simple">
+<li><strong>kvlclient</strong>:
+<code class="xref py py-class docutils literal"><span class="pre">kvlayer._abstract_storage.AbstractStorage</span></code></li>
+<li><strong>store</strong>: <a class="reference internal" href="dossier.store.html#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">dossier.store.Store</span></code></a></li>
+<li><strong>label_store</strong>: <a class="reference internal" href="dossier.label.html#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">dossier.label.LabelStore</span></code></a></li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">A callable with a signature isomorphic to
+<a class="reference internal" href="#dossier.web.SearchEngine.__call__" title="dossier.web.SearchEngine.__call__"><code class="xref py py-meth docutils literal"><span class="pre">dossier.web.SearchEngine.__call__()</span></code></a>.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.web.SearchEngine.__call__">
+<code class="descclassname">SearchEngine.</code><code class="descname">__call__</code><span class="sig-paren">(</span><em>content_id</em>, <em>filter_pred</em>, <em>limit</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#SearchEngine.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.SearchEngine.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run a search engine.</p>
+<p>This method runs a search engine with the query <code class="docutils literal"><span class="pre">content_id</span></code>
+and returns a result set of feature collections.</p>
+<p><code class="docutils literal"><span class="pre">content_id</span></code> will correspond to a feature collection
+accessible via a <a class="reference internal" href="dossier.store.html#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">dossier.store.Store</span></code></a>. Note
+that <code class="docutils literal"><span class="pre">content_id</span></code> may not point to any existing
+<a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>. If a feature collection
+does not exist, a search engine may invent one or simply return
+no results.</p>
+<p><code class="docutils literal"><span class="pre">filter_pred</span></code> is a predicate that returns <code class="docutils literal"><span class="pre">True</span></code> given a
+(<code class="docutils literal"><span class="pre">content_id</span></code>, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>) if and
+only if that object should appear in the results.  Typically,
+this filtering predicate is used to make sure already labeled
+feature collections don&#8217;t re-appear.</p>
+<p><code class="docutils literal"><span class="pre">limit</span></code> is an integer that determines how many results the
+user wants to handle. Search engines may assume that this is
+capped at a reasonable maximum.</p>
+<p>Finally, any additional query parameters in the URL are passed
+as keyword arguments, which will all be strings.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.Filter">
+<code class="descclassname">dossier.web.</code><code class="descname">Filter</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#Filter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.Filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>A filter predicate for results returned by search engines.</p>
+<p>A filter predicate is a <code class="xref py py-class docutils literal"><span class="pre">yakonfig.Configurable</span></code> object
+(or one that can be auto-configured) that returns a callable
+for creating a predicate that will filter results produced by
+a search engine.</p>
+<p>The predicate should be a function that accepts a tuple
+(<code class="docutils literal"><span class="pre">content_id</span></code>, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>) and returns
+<code class="docutils literal"><span class="pre">True</span></code> if and only if that result should be included in the
+recommendations presented to the user.</p>
+<p>Here is how the <a class="reference internal" href="#dossier.web.filter_already_labeled" title="dossier.web.filter_already_labeled"><code class="xref py py-func docutils literal"><span class="pre">dossier.web.filter_already_labeled()</span></code></a> filter
+is written:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">already_labeled</span><span class="p">(</span><span class="n">label_store</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">init_filter</span><span class="p">(</span><span class="n">query_content_id</span><span class="p">):</span>
+        <span class="n">labeled</span> <span class="o">=</span> <span class="n">label_store</span><span class="o">.</span><span class="n">directly_connected</span><span class="p">(</span>
+            <span class="n">query_content_id</span><span class="p">)</span>
+        <span class="n">labeled_cids</span> <span class="o">=</span> <span class="p">{</span><span class="n">label</span><span class="o">.</span><span class="n">other</span><span class="p">(</span><span class="n">query_content_id</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labeled</span><span class="p">}</span>
+        <span class="k">def</span> <span class="nf">p</span><span class="p">((</span><span class="n">content_id</span><span class="p">,</span> <span class="n">fc</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">content_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">labeled_cids</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="k">return</span> <span class="n">init_filter</span>
+</pre></div>
+</div>
+<p>Note that fetching all of the labels before running the predicate
+is critical for this to perform well.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.Route">
+<code class="descclassname">dossier.web.</code><code class="descname">Route</code><span class="sig-paren">(</span><em>bottle_app</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#Route"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.Route" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines an interface for web routes.</p>
+<p>A web route is a function that receives HTTP requests and returns
+HTTP responses.</p>
+<p>You may add your own routes to a <code class="docutils literal"><span class="pre">dossier.web</span></code> application by
+defining Python objects that conform to the interface defined here
+(they do not need to subclass this class).</p>
+<dl class="method">
+<dt id="dossier.web.Route.__init__">
+<code class="descclassname">Route.</code><code class="descname">__init__</code><span class="sig-paren">(</span><em>bottle_app</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/interface.html#Route.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.Route.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add routes to an existing Bottle application.</p>
+<p>This interface permits one to add new routes to the
+Bottle application used by <code class="docutils literal"><span class="pre">dossier.web</span></code>. For example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">my_route</span><span class="p">(</span><span class="n">bottle_app</span><span class="p">):</span>
+    <span class="nd">@bottle_app.get</span><span class="p">(</span><span class="s">&#39;/visit-me&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">bottle_route</span><span class="p">():</span>
+        <span class="k">return</span> <span class="s">&#39;Hello, world!&#39;</span>
+
+<span class="c"># Use it in the application.</span>
+<span class="n">_</span><span class="p">,</span> <span class="n">app</span> <span class="o">=</span> <span class="n">get_application</span><span class="p">(</span><span class="n">routes</span><span class="o">=</span><span class="p">[</span><span class="n">my_route</span><span class="p">])</span>
+</pre></div>
+</div>
+<p><code class="docutils literal"><span class="pre">dossier.web</span></code> also configures dependency injection for your
+routes. The following is a list of special parameter names that
+can appear in your route function. They will be automatically
+populated with values of the following types:</p>
+<ul class="simple">
+<li><strong>config</strong>: <code class="xref py py-class docutils literal"><span class="pre">dossier.web.Config</span></code></li>
+<li><strong>kvlclient</strong>:
+<code class="xref py py-class docutils literal"><span class="pre">kvlayer._abstract_storage.AbstractStorage</span></code></li>
+<li><strong>store</strong>: <a class="reference internal" href="dossier.store.html#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">dossier.store.Store</span></code></a></li>
+<li><strong>label_store</strong>: <a class="reference internal" href="dossier.label.html#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">dossier.label.LabelStore</span></code></a></li>
+<li><strong>search_engines</strong>: <code class="docutils literal"><span class="pre">list</span></code> of search engines (which are
+duck typed to <a class="reference internal" href="#dossier.web.SearchEngine" title="dossier.web.SearchEngine"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.SearchEngine</span></code></a>).</li>
+<li><strong>filter_preds</strong>: <code class="docutils literal"><span class="pre">list</span></code> of filter predicates (which are
+duck typed to <a class="reference internal" href="#dossier.web.Filter" title="dossier.web.Filter"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.Filter</span></code></a>).</li>
+<li><strong>request</strong>: <code class="xref py py-class docutils literal"><span class="pre">bottle.Request</span></code></li>
+<li><strong>response</strong>: <code class="xref py py-class docutils literal"><span class="pre">bottle.Response</span></code></li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>bottle_app</strong> (<code class="xref py py-class docutils literal"><span class="pre">bottle.Bottle</span></code>) &#8211; A Bottle application.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<p>Here are the available search engines by default:</p>
+<dl class="function">
+<dt id="dossier.web.engine_index_scan">
+<code class="descclassname">dossier.web.</code><code class="descname">engine_index_scan</code><span class="sig-paren">(</span><em>store</em><span class="sig-paren">)</span><a class="headerlink" href="#dossier.web.engine_index_scan" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a random sample of an index scan.</p>
+<p>This scans all indexes defined for all values in the query
+corresponding to those indexes.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.engine_random">
+<code class="descclassname">dossier.web.</code><code class="descname">engine_random</code><span class="sig-paren">(</span><em>store</em><span class="sig-paren">)</span><a class="headerlink" href="#dossier.web.engine_random" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return random results with the same name.</p>
+<p>This finds all content objects that have a matching name and
+returns <code class="docutils literal"><span class="pre">limit</span></code> results at random.</p>
+</dd></dl>
+
+<p>Here are the available filter predicates by default:</p>
+<dl class="function">
+<dt id="dossier.web.filter_already_labeled">
+<code class="descclassname">dossier.web.</code><code class="descname">filter_already_labeled</code><span class="sig-paren">(</span><em>label_store</em><span class="sig-paren">)</span><a class="headerlink" href="#dossier.web.filter_already_labeled" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter results that have a label associated with them.</p>
+<p>If a result has a <em>direct</em> label between it and the query, then
+it will be removed from the list of results.</p>
+</dd></dl>
+
+<p>Some useful utility functions.</p>
+<dl class="function">
+<dt id="dossier.web.streaming_sample">
+<code class="descclassname">dossier.web.</code><code class="descname">streaming_sample</code><span class="sig-paren">(</span><em>seq</em>, <em>k</em>, <em>limit=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/search_engines.html#streaming_sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.streaming_sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Streaming sample.</p>
+<p>Iterate over seq (once!) keeping k random elements with uniform
+distribution.</p>
+<p>As a special case, if <code class="docutils literal"><span class="pre">k</span></code> is <code class="docutils literal"><span class="pre">None</span></code>, then <code class="docutils literal"><span class="pre">list(seq)</span></code> is
+returned.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>seq</strong> &#8211; iterable of things to sample from</li>
+<li><strong>k</strong> &#8211; size of desired sample</li>
+<li><strong>limit</strong> &#8211; stop reading <code class="docutils literal"><span class="pre">seq</span></code> after considering this many</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">list of elements from seq, length k (or less if seq is
+short)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<span class="target" id="module-dossier.web.routes"></span><div class="section" id="web-service-for-active-learning">
+<h2>5.1. Web service for active learning<a class="headerlink" href="#web-service-for-active-learning" title="Permalink to this headline">¶</a></h2>
+<p>dossier.web.routes.app is a REST stateful web service that can
+drive Dossier Stack&#8217;s an active ranking models and user interface, as
+well as other search technologies.</p>
+<p>There are only a few API end points. They provide searching, storage
+and retrieval of feature collections along with storage of ground
+truth data as labels. Labels are typically used in the implementation
+of a search engine to filter or improve the recommendations returned.</p>
+<p>The API end points are documented as functions in this module.</p>
+<dl class="function">
+<dt id="dossier.web.routes.v1_search">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_search</code><span class="sig-paren">(</span><em>request</em>, <em>config</em>, <em>search_engines</em>, <em>filter_preds</em>, <em>cid</em>, <em>engine_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_search"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_search" title="Permalink to this definition">¶</a></dt>
+<dd><p>Search feature collections.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">/dossier/v1/&lt;content_id&gt;/search/&lt;search_engine_name&gt;</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">content_id</span></code> can be any <em>profile</em> content identifier. (This
+restriction may be lifted at some point.) Namely, it must start
+with <code class="docutils literal"><span class="pre">p|</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">engine_name</span></code> corresponds to the search strategy to
+use. The list of available search engines can be retrieved with the
+<a class="reference internal" href="#dossier.web.routes.v1_search_engines" title="dossier.web.routes.v1_search_engines"><code class="xref py py-func docutils literal"><span class="pre">v1_search_engines()</span></code></a> endpoint.</p>
+<p>This endpoint returns a JSON payload which is an object with a
+single key, <code class="docutils literal"><span class="pre">results</span></code>. <code class="docutils literal"><span class="pre">results</span></code> is a list of objects, where
+the objects each have <code class="docutils literal"><span class="pre">content_id</span></code> and <code class="docutils literal"><span class="pre">fc</span></code> attributes.
+<code class="docutils literal"><span class="pre">content_id</span></code> is the unique identifier for the result returned,
+and <code class="docutils literal"><span class="pre">fc</span></code> is a JSON serialization of a feature collection.</p>
+<p>There are also two query parameters:</p>
+<ul class="simple">
+<li><strong>limit</strong> limits the number of results to the number given.</li>
+<li><strong>filter</strong> sets the filtering function. The default
+filter function, <code class="docutils literal"><span class="pre">already_labeled</span></code>, will filter out any
+feature collections that have already been labeled with the
+query <code class="docutils literal"><span class="pre">content_id</span></code>.</li>
+</ul>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_search_engines">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_search_engines</code><span class="sig-paren">(</span><em>search_engines</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_search_engines"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_search_engines" title="Permalink to this definition">¶</a></dt>
+<dd><p>List available search engines.</p>
+<p>The route for this endpoint is: <code class="docutils literal"><span class="pre">/dossier/v1/search_engines</span></code>.</p>
+<p>This endpoint returns a JSON payload which is an object with two
+keys: <code class="docutils literal"><span class="pre">default</span></code> and <code class="docutils literal"><span class="pre">names</span></code>. <code class="docutils literal"><span class="pre">default</span></code> corresponds to a
+chosen default search engine. This value will <em>always</em> correspond
+to a valid search engine. <code class="docutils literal"><span class="pre">names</span></code> is an array of all available
+search engines (including <code class="docutils literal"><span class="pre">default</span></code>).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_fc_get">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_fc_get</code><span class="sig-paren">(</span><em>store</em>, <em>cid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_fc_get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_fc_get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve a single feature collection.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">/dossier/v1/feature-collections/&lt;content_id&gt;</span></code>.</p>
+<p>This endpoint returns a JSON serialization of the feature collection
+identified by <code class="docutils literal"><span class="pre">content_id</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_fc_put">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_fc_put</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>store</em>, <em>cid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_fc_put"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_fc_put" title="Permalink to this definition">¶</a></dt>
+<dd><p>Store a single feature collection.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">PUT</span> <span class="pre">/dossier/v1/feature-collections/&lt;content_id&gt;</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">content_id</span></code> is the id to associate with the given feature
+collection. The feature collection should be in the request
+body serialized as JSON.</p>
+<p>This endpoint returns status <code class="docutils literal"><span class="pre">201</span></code> upon successful storage.
+An existing feature collection with id <code class="docutils literal"><span class="pre">content_id</span></code> is
+overwritten.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_random_fc_get">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_random_fc_get</code><span class="sig-paren">(</span><em>response</em>, <em>store</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_random_fc_get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_random_fc_get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves a random feature collection from the database.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">GET</span> <span class="pre">/dossier/v1/random/feature-collection</span></code>.</p>
+<p>Assuming the database has at least one feature collection,
+this end point returns an array of two elements. The first
+element is the content id and the second element is a
+feature collection (in the same format returned by
+<a class="reference internal" href="#dossier.web.routes.v1_fc_get" title="dossier.web.routes.v1_fc_get"><code class="xref py py-func docutils literal"><span class="pre">dossier.web.routes.v1_fc_get()</span></code></a>).</p>
+<p>If the database is empty, then a 404 error is returned.</p>
+<p>Note that currently, this may not be a uniformly random sample.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_label_put">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_label_put</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>config</em>, <em>label_hooks</em>, <em>label_store</em>, <em>cid1</em>, <em>cid2</em>, <em>annotator_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_label_put"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_label_put" title="Permalink to this definition">¶</a></dt>
+<dd><p>Store a single label.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">PUT</span> <span class="pre">/dossier/v1/labels/&lt;content_id1&gt;/&lt;content_id2&gt;/&lt;annotator_id&gt;</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">content_id</span></code> are the ids of the feature collections to
+associate. <code class="docutils literal"><span class="pre">annotator_id</span></code> is a string that identifies the
+human that created the label. The value of the label should
+be in the request body as one of the following three values:
+<code class="docutils literal"><span class="pre">-1</span></code> for not coreferent, <code class="docutils literal"><span class="pre">0</span></code> for &#8220;I don&#8217;t know if they
+are coreferent&#8221; and <code class="docutils literal"><span class="pre">1</span></code> for coreferent.</p>
+<p>Optionally, the query parameters <code class="docutils literal"><span class="pre">subtopic_id1</span></code> and
+<code class="docutils literal"><span class="pre">subtopic_id2</span></code> may be specified. Neither, both or either may
+be given. <code class="docutils literal"><span class="pre">subtopic_id1</span></code> corresponds to a subtopic in
+<code class="docutils literal"><span class="pre">content_id1</span></code> and <code class="docutils literal"><span class="pre">subtopic_id2</span></code> corresponds to a subtopic
+in <code class="docutils literal"><span class="pre">content_id2</span></code>.</p>
+<p>This endpoint returns status <code class="docutils literal"><span class="pre">201</span></code> upon successful storage.
+Any existing labels with the given ids are overwritten.</p>
+<p>After the label is stored, any label hooks passed via <code class="docutils literal"><span class="pre">label_hooks</span></code>
+are executed. Each label hook should satisfy
+<code class="docutils literal"><span class="pre">yakonfig.AutoFactory</span></code>. Once created, the label hook should be
+a function of one parameter: a <a class="reference internal" href="dossier.label.html#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">dossier.label.Label</span></code></a>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_label_direct">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_label_direct</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>label_store</em>, <em>cid</em>, <em>subid=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_label_direct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_label_direct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return directly connected labels.</p>
+<p>The routes for this endpoint are
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/direct</span></code> and
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/direct</span></code>.</p>
+<p>This returns all directly connected labels for <code class="docutils literal"><span class="pre">cid</span></code>. Or, if
+a subtopic id is given, then only directly connected labels for
+<code class="docutils literal"><span class="pre">(cid,</span> <span class="pre">subid)</span></code> are returned.</p>
+<p>The data returned is a JSON list of labels. Each label is a
+dictionary with the following keys: <code class="docutils literal"><span class="pre">content_id1</span></code>,
+<code class="docutils literal"><span class="pre">content_id2</span></code>, <code class="docutils literal"><span class="pre">subtopic_id1</span></code>, <code class="docutils literal"><span class="pre">subtopic_id2</span></code>,
+<code class="docutils literal"><span class="pre">annotator_id</span></code>, <code class="docutils literal"><span class="pre">epoch_ticks</span></code> and <code class="docutils literal"><span class="pre">value</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_label_connected">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_label_connected</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>label_store</em>, <em>cid</em>, <em>subid=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_label_connected"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_label_connected" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a connected component of positive labels.</p>
+<p>The routes for this endpoint are
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/connected</span></code> and
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/connected</span></code>.</p>
+<p>This returns the edges for the connected component of
+either <code class="docutils literal"><span class="pre">cid</span></code> or <code class="docutils literal"><span class="pre">(cid,</span> <span class="pre">subid)</span></code> if a subtopic identifier
+is given.</p>
+<p>The data returned is a JSON list of labels. Each label is a
+dictionary with the following keys: <code class="docutils literal"><span class="pre">content_id1</span></code>,
+<code class="docutils literal"><span class="pre">content_id2</span></code>, <code class="docutils literal"><span class="pre">subtopic_id1</span></code>, <code class="docutils literal"><span class="pre">subtopic_id2</span></code>,
+<code class="docutils literal"><span class="pre">annotator_id</span></code>, <code class="docutils literal"><span class="pre">epoch_ticks</span></code> and <code class="docutils literal"><span class="pre">value</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_label_expanded">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_label_expanded</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>label_store</em>, <em>cid</em>, <em>subid=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_label_expanded"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_label_expanded" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an expansion of the connected component of positive labels.</p>
+<p>The routes for this endpoint are
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/expanded</span></code> and
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/expanded</span></code>.</p>
+<p>This returns the edges for the expansion of the connected component
+of either <code class="docutils literal"><span class="pre">cid</span></code> or <code class="docutils literal"><span class="pre">(cid,</span> <span class="pre">subid)</span></code> if a subtopic identifier is
+given. Note that the expansion of a set of labels does not provide
+any new information content over a connected component. It is
+provided as a convenience for clients that want all possible labels
+in a connected component, regardless of whether one explicitly
+exists or not.</p>
+<p>The data returned is a JSON list of labels. Each label is a
+dictionary with the following keys: <code class="docutils literal"><span class="pre">content_id1</span></code>,
+<code class="docutils literal"><span class="pre">content_id2</span></code>, <code class="docutils literal"><span class="pre">subtopic_id1</span></code>, <code class="docutils literal"><span class="pre">subtopic_id2</span></code>,
+<code class="docutils literal"><span class="pre">annotator_id</span></code>, <code class="docutils literal"><span class="pre">epoch_ticks</span></code> and <code class="docutils literal"><span class="pre">value</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_label_negative_inference">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_label_negative_inference</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>label_store</em>, <em>cid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_label_negative_inference"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_label_negative_inference" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return inferred negative labels.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">/dossier/v1/label/&lt;cid&gt;/negative-inference</span></code>.</p>
+<p>Negative labels are inferred by first getting all other content ids
+connected to <code class="docutils literal"><span class="pre">cid</span></code> through a negative label. For each directly
+adjacent <code class="docutils literal"><span class="pre">cid'</span></code>, the connected components of <code class="docutils literal"><span class="pre">cid</span></code> and
+<code class="docutils literal"><span class="pre">cid'</span></code> are traversed to find negative labels.</p>
+<p>The data returned is a JSON list of labels. Each label is a
+dictionary with the following keys: <code class="docutils literal"><span class="pre">content_id1</span></code>,
+<code class="docutils literal"><span class="pre">content_id2</span></code>, <code class="docutils literal"><span class="pre">subtopic_id1</span></code>, <code class="docutils literal"><span class="pre">subtopic_id2</span></code>,
+<code class="docutils literal"><span class="pre">annotator_id</span></code>, <code class="docutils literal"><span class="pre">epoch_ticks</span></code> and <code class="docutils literal"><span class="pre">value</span></code>.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="managing-folders-and-sub-folders">
+<h2>5.2. Managing folders and sub-folders<a class="headerlink" href="#managing-folders-and-sub-folders" title="Permalink to this headline">¶</a></h2>
+<p>In many places where active learning is used, it can be useful to
+provide the user with a means to group and categorize topics. In an
+active learning setting, it is essential that we try to capture a
+user&#8217;s grouping of topics so that it can be used for ground truth data.
+To that end, <code class="docutils literal"><span class="pre">dossier.web</span></code> exposes a set of web service endpoints
+for managing folders and subfolders for a particular user. Folders and
+subfolders are stored and managed by <a class="reference internal" href="dossier.label.html#module-dossier.label" title="dossier.label"><code class="xref py py-mod docutils literal"><span class="pre">dossier.label</span></code></a>, which means
+they are automatically available as ground truth data.</p>
+<p>The actual definition of what a folder or subfolder is depends on the
+task the user is trying to perform. We tend to think of a folder as a
+general topic and a subfolder as a more specific topic or &#8220;subtopic.&#8221;
+For example, a topic might be &#8220;cars&#8221; and some subtopics might be
+&#8220;dealerships with cars I want to buy&#8221; or &#8220;electric cars.&#8221;</p>
+<p>The following end points allow one to add or list folders and
+subfolders. There is also an endpoint for listing all of the items
+in a single subfolder, where each item is a pair of <code class="docutils literal"><span class="pre">(content_id,</span>
+<span class="pre">subtopic_id)</span></code>.</p>
+<p>In general, the identifier of a folder/subfolder is also used as its
+name, similar to how identifiers in Wikipedia work. For example, if
+a folder has a name &#8220;My Cars&#8221;, then its identifier is <code class="docutils literal"><span class="pre">My_Cars</span></code>.
+More specifically, given any folder name <code class="docutils literal"><span class="pre">NAME</span></code>, its corresponding
+identifier can be obtained with <code class="docutils literal"><span class="pre">NAME.replace('</span> <span class="pre">',</span> <span class="pre">'_')</span></code>.</p>
+<p>All web routes accept and return <em>identifiers</em> (so space characters are
+disallowed).</p>
+<p>(Currently, there is no simple way to modify the name of an existing
+folder or sub-folder. There is also no simple way to delete an existing
+folder or sub-folder.)</p>
+<dl class="function">
+<dt id="dossier.web.routes.v1_folder_list">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_folder_list</code><span class="sig-paren">(</span><em>request</em>, <em>store</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_folder_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_folder_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves a list of folders for the current user.</p>
+<p>The route for this endpoint is: <code class="docutils literal"><span class="pre">GET</span> <span class="pre">/dossier/v1/folder</span></code>.</p>
+<p>(Temporarily, the &#8220;current user&#8221; can be set via the
+<code class="docutils literal"><span class="pre">annotator_id</span></code> query parameter.)</p>
+<p>The payload returned is a list of folder identifiers.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_folder_add">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_folder_add</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>store</em>, <em>fid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_folder_add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_folder_add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds a folder belonging to the current user.</p>
+<p>The route for this endpoint is: <code class="docutils literal"><span class="pre">PUT</span> <span class="pre">/dossier/v1/folder/&lt;fid&gt;</span></code>.</p>
+<p>If the folder was added successfully, <code class="docutils literal"><span class="pre">201</span></code> status is returned.</p>
+<p>(Temporarily, the &#8220;current user&#8221; can be set via the
+<code class="docutils literal"><span class="pre">annotator_id</span></code> query parameter.)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_subfolder_list">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_subfolder_list</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>store</em>, <em>label_store</em>, <em>fid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_subfolder_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_subfolder_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves a list of subfolders in a folder for the current user.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">GET</span> <span class="pre">/dossier/v1/folder/&lt;fid&gt;/subfolder</span></code>.</p>
+<p>(Temporarily, the &#8220;current user&#8221; can be set via the
+<code class="docutils literal"><span class="pre">annotator_id</span></code> query parameter.)</p>
+<p>The payload returned is a list of subfolder identifiers.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_subfolder_add">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_subfolder_add</code><span class="sig-paren">(</span><em>request</em>, <em>response</em>, <em>store</em>, <em>label_store</em>, <em>fid</em>, <em>sfid</em>, <em>cid</em>, <em>subid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_subfolder_add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_subfolder_add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds a subtopic to a subfolder for the current user.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">PUT</span> <span class="pre">/dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;/&lt;cid&gt;/&lt;subid&gt;</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">fid</span></code> is the folder identifier, e.g., <code class="docutils literal"><span class="pre">My_Folder</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">sfid</span></code> is the subfolder identifier, e.g., <code class="docutils literal"><span class="pre">My_Subtopic</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">cid</span></code> and <code class="docutils literal"><span class="pre">subid</span></code> are the content id and subtopic id of the
+subtopic being added to the subfolder.</p>
+<p>If the subfolder does not already exist, it is created
+automatically. N.B. An empty subfolder cannot exist!</p>
+<p>If the subtopic was added successfully, <code class="docutils literal"><span class="pre">201</span></code> status is returned.</p>
+<p>(Temporarily, the &#8220;current user&#8221; can be set via the
+<code class="docutils literal"><span class="pre">annotator_id</span></code> query parameter.)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.web.routes.v1_subtopic_list">
+<code class="descclassname">dossier.web.routes.</code><code class="descname">v1_subtopic_list</code><span class="sig-paren">(</span><em>request</em>, <em>store</em>, <em>label_store</em>, <em>fid</em>, <em>sfid</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/web/routes.html#v1_subtopic_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.web.routes.v1_subtopic_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves a list of items in a subfolder.</p>
+<p>The route for this endpoint is:
+<code class="docutils literal"><span class="pre">GET</span> <span class="pre">/dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;</span></code>.</p>
+<p>(Temporarily, the &#8220;current user&#8221; can be set via the
+<code class="docutils literal"><span class="pre">annotator_id</span></code> query parameter.)</p>
+<p>The payload returned is a list of two element arrays. The first
+element in the array is the item&#8217;s content id and the second
+element is the item&#8217;s subtopic id.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">5. <code class="docutils literal"><span class="pre">dossier.web</span></code> &#8212; DossierStack web services</a><ul>
+<li><a class="reference internal" href="#web-service-for-active-learning">5.1. Web service for active learning</a></li>
+<li><a class="reference internal" href="#managing-folders-and-sub-folders">5.2. Managing folders and sub-folders</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="dossier.models.html"
+                        title="previous chapter">4. <code class="docutils literal"><span class="pre">dossier.models</span></code> &#8212; Active learning</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dossier.web.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.models.html" title="4. dossier.models — Active learning"
+             >previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

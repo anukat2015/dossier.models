@@ -1,0 +1,321 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>4. dossier.models — Active learning &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="index.html" />
+    <link rel="next" title="5. dossier.web — DossierStack web services" href="dossier.web.html" />
+    <link rel="prev" title="3. dossier.label — store ground truth data as labels" href="dossier.label.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.web.html" title="5. dossier.web — DossierStack web services"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dossier.label.html" title="3. dossier.label — store ground truth data as labels"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-dossier.models">
+<span id="dossier-models-active-learning"></span><h1>4. <a class="reference internal" href="#module-dossier.models" title="dossier.models"><code class="xref py py-mod docutils literal"><span class="pre">dossier.models</span></code></a> &#8212; Active learning<a class="headerlink" href="#module-dossier.models" title="Permalink to this headline">¶</a></h1>
+<p><code class="docutils literal"><span class="pre">dossier.models</span></code> provides search engines and a <a class="reference internal" href="dossier.web.html#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a>
+application for working with active learning.</p>
+<span class="target" id="module-dossier.models.web.run"></span><div class="section" id="web-services-for-active-learning-search-engines">
+<h2>4.1. Web services for active learning search engines<a class="headerlink" href="#web-services-for-active-learning-search-engines" title="Permalink to this headline">¶</a></h2>
+<p>This library ships with a command line application, <code class="docutils literal"><span class="pre">dossier.models</span></code>,
+that runs a web service. It is easy to run:</p>
+<div class="highlight-python"><div class="highlight"><pre>dossier.models -c config.yaml
+</pre></div>
+</div>
+<p>This runs it on <code class="docutils literal"><span class="pre">localhost:8080</span></code>. A sample config file looks like:</p>
+<div class="highlight-yaml"><div class="highlight"><pre><span class="l-Scalar-Plain">dossier.store</span><span class="p-Indicator">:</span>
+  <span class="l-Scalar-Plain">feature_indexes</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span><span class="s">&#39;bowNP_sip&#39;</span><span class="p-Indicator">,</span> <span class="s">&#39;phone&#39;</span><span class="p-Indicator">,</span> <span class="s">&#39;region&#39;</span><span class="p-Indicator">]</span>
+
+<span class="l-Scalar-Plain">dossier.models</span><span class="p-Indicator">:</span>
+  <span class="l-Scalar-Plain">tfidf_path</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">/path/to/tfidf/model.tfidf</span>
+
+<span class="l-Scalar-Plain">kvlayer</span><span class="p-Indicator">:</span>
+  <span class="l-Scalar-Plain">app_name</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">dossierstack</span>
+  <span class="l-Scalar-Plain">namespace</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">myapp</span>
+  <span class="l-Scalar-Plain">storage_type</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">redis</span>
+  <span class="l-Scalar-Plain">storage_addresses</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span><span class="s">&#39;localhost:6379&#39;</span><span class="p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Where the <code class="docutils literal"><span class="pre">tfidf_path</span></code> corresponds to a TF-IDF model generated by
+<code class="docutils literal"><span class="pre">gensim</span></code>. You can create one with the <code class="docutils literal"><span class="pre">dossier.etl</span> <span class="pre">tfidf</span></code> command.
+(Note that this is optional!)</p>
+<p>Once <code class="docutils literal"><span class="pre">dossier.models</span></code> is running, you can try the
+Sorting Desk browser extension for Google Chrome:
+<a class="reference external" href="https://chrome.google.com/webstore/detail/sorting-desk/ikcaehokdafneaiojndpmfbimilmlnid">https://chrome.google.com/webstore/detail/sorting-desk/ikcaehokdafneaiojndpmfbimilmlnid</a>.
+Once the extension is installed, you&#8217;ll need to go to
+its options and configure it to point to <code class="docutils literal"><span class="pre">http://localhost:8080</span></code>.</p>
+<p>Alternatively, you can follow the steps here to get a simple example
+working on a sample data set:
+<a class="reference external" href="https://github.com/dossier/dossier.models#running-a-simple-example">https://github.com/dossier/dossier.models#running-a-simple-example</a>.</p>
+<div class="section" id="web-service-endpoints">
+<h3>4.1.1. Web service endpoints<a class="headerlink" href="#web-service-endpoints" title="Permalink to this headline">¶</a></h3>
+<p>The web service has all of the same endpoints as <a class="reference internal" href="dossier.web.html#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a>.
+A couple of the endpoints are slightly enhanced to take advantage of
+<code class="docutils literal"><span class="pre">dossier.models</span></code> pairwise learning algorithm and feature extraction.
+These enhanced endpoints are <a class="reference internal" href="dossier.web.html#dossier.web.routes.v1_search" title="dossier.web.routes.v1_search"><code class="xref py py-func docutils literal"><span class="pre">dossier.web.routes.v1_search()</span></code></a> and
+<a class="reference internal" href="dossier.web.html#dossier.web.routes.v1_fc_put" title="dossier.web.routes.v1_fc_put"><code class="xref py py-func docutils literal"><span class="pre">dossier.web.routes.v1_fc_put()</span></code></a>. The <code class="docutils literal"><span class="pre">v1_search</span></code> endpoint is
+enhanced with the addition of the <code class="xref py py-func docutils literal"><span class="pre">dossier.models.similar()</span></code> and
+<code class="xref py py-func docutils literal"><span class="pre">dossier.models.dissimilar()</span></code> search engines. Additionally, the
+<code class="docutils literal"><span class="pre">v1_fc_put</span></code> accepts <code class="docutils literal"><span class="pre">text/html</span></code> content and will generate a feature
+collection for you.</p>
+</div>
+<div class="section" id="how-the-sorting-desk-browser-extension-works">
+<h3>4.1.2. How the Sorting Desk browser extension works<a class="headerlink" href="#how-the-sorting-desk-browser-extension-works" title="Permalink to this headline">¶</a></h3>
+<p>SortingDesk needs a <code class="docutils literal"><span class="pre">dossier.models</span></code> web server in order to function
+properly. Namely, it uses <code class="docutils literal"><span class="pre">dossier.models</span></code> (and the underlying
+DossierStack) to add/update feature collections, store ground truth
+data as &#8220;labels,&#8221; and run pairwise learning algorithms to rank relevant
+search results. All of this information is saved to the underlying
+database, so it is persistent across all user sessions.</p>
+<p><code class="docutils literal"><span class="pre">dossier.models</span></code> also provides a folder/sub-folder organization
+UI. Currently, this is built on top of Google Chrome&#8217;s local storage.
+Namely, it doesn&#8217;t yet use the folder/subfolder web services described
+in <a class="reference internal" href="dossier.web.html#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a>. Therefore, folders/sub-folders don&#8217;t yet persist
+across multiple user sessions, but they will once we migrate off of
+Chrome&#8217;s local storage.</p>
+</div>
+</div>
+<span class="target" id="module-dossier.models.pairwise"></span><div class="section" id="active-learning-pairwise-search-engines">
+<h2>4.2. Active learning pairwise search engines<a class="headerlink" href="#active-learning-pairwise-search-engines" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="dossier.models.pairwise.similar">
+<code class="descclassname">dossier.models.pairwise.</code><code class="descname">similar</code><span class="sig-paren">(</span><em>store</em>, <em>label_store</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/pairwise.html#similar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.pairwise.similar" title="Permalink to this definition">¶</a></dt>
+<dd><p>An active learning search engine that returns similar results.</p>
+<p>This satisfies the <a class="reference internal" href="dossier.web.html#dossier.web.SearchEngine" title="dossier.web.SearchEngine"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.SearchEngine</span></code></a> interface.</p>
+<p>In addition to the standard query inputs of <code class="docutils literal"><span class="pre">content_id</span></code>,
+<code class="docutils literal"><span class="pre">filter_pred</span></code>, and <code class="docutils literal"><span class="pre">limit</span></code>, this search engine has optional
+parameters <code class="docutils literal"><span class="pre">canopy_limit</span></code> and <code class="docutils literal"><span class="pre">label_limit</span></code> that restrict
+the number of candidates loaded for in-memory ranking and the
+number of labels used for model training, respectively.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.models.pairwise.dissimilar">
+<code class="descclassname">dossier.models.pairwise.</code><code class="descname">dissimilar</code><span class="sig-paren">(</span><em>store</em>, <em>label_store</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/pairwise.html#dissimilar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.pairwise.dissimilar" title="Permalink to this definition">¶</a></dt>
+<dd><p>An active learning search engine that returns dissimilar results.</p>
+<p>This satisfies the <a class="reference internal" href="dossier.web.html#dossier.web.SearchEngine" title="dossier.web.SearchEngine"><code class="xref py py-class docutils literal"><span class="pre">dossier.web.SearchEngine</span></code></a> interface.</p>
+<p>In addition to the standard query inputs of <code class="docutils literal"><span class="pre">content_id</span></code>,
+<code class="docutils literal"><span class="pre">filter_pred</span></code>, and <code class="docutils literal"><span class="pre">limit</span></code>, this search engine has optional
+parameters <code class="docutils literal"><span class="pre">canopy_limit</span></code> and <code class="docutils literal"><span class="pre">label_limit</span></code> that restrict
+the number of candidates loaded for in-memory ranking and the
+number of labels used for model training, respectively.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.models.pairwise.PairwiseFeatureLearner">
+<em class="property">class </em><code class="descclassname">dossier.models.pairwise.</code><code class="descname">PairwiseFeatureLearner</code><span class="sig-paren">(</span><em>store</em>, <em>label_store</em>, <em>content_id</em>, <em>canopy_limit=None</em>, <em>label_limit=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/pairwise.html#PairwiseFeatureLearner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.pairwise.PairwiseFeatureLearner" title="Permalink to this definition">¶</a></dt>
+<dd><p>A pairwise active learning model.</p>
+<p>This active learning model applies
+<code class="xref py py-class docutils literal"><span class="pre">LogisticRegression</span></code> on-the-fly
+as a user (or simulated user) interacts with content
+via the web services provided by <a class="reference internal" href="dossier.web.html#module-dossier.web" title="dossier.web"><code class="xref py py-mod docutils literal"><span class="pre">dossier.web</span></code></a>.</p>
+<p>This reads <a class="reference internal" href="dossier.label.html#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a> objects from
+<a class="reference internal" href="dossier.label.html#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">LabelStore</span></code></a> and provides predictions of
+pairwise equivalence, which can be used for coreference resolution,
+clustering, and ranking.</p>
+<dl class="method">
+<dt id="dossier.models.PairwiseFeatureLearner.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>store</em>, <em>label_store</em>, <em>content_id</em>, <em>canopy_limit=None</em>, <em>label_limit=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/pairwise.html#PairwiseFeatureLearner.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.PairwiseFeatureLearner.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build a new model.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>store</strong> (<a class="reference internal" href="dossier.store.html#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">dossier.store.Store</span></code></a>) &#8211; A store of feature collections.</li>
+<li><strong>label_store</strong> (<a class="reference internal" href="dossier.label.html#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">dossier.label.LabelStore</span></code></a>) &#8211; A store of labels (ground truth data).</li>
+<li><strong>content_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; The query content id (which should correspond
+to a feature collection in the <code class="docutils literal"><span class="pre">store</span></code>).
+If it doesn&#8217;t, no results are returned.</li>
+<li><strong>canopy_limit</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; A limit on the number of results to return
+in the canopy (the initial index scan).
+This is meant to be a mechanism for resource
+control.</li>
+<li><strong>label_limit</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; A limit on the number of labels to use in
+training. This is meant to be a mechanism for
+resource control.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.models.PairwiseFeatureLearner.probabilities">
+<code class="descname">probabilities</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/pairwise.html#PairwiseFeatureLearner.probabilities"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.PairwiseFeatureLearner.probabilities" title="Permalink to this definition">¶</a></dt>
+<dd><p>Trains a model and predicts recommendations.</p>
+<p>If the query feature collection could not be found or if there
+is insufficient training data, an empty list is returned.</p>
+<p>Otherwise, a list of content objects (tuples of content
+id and feature collection) and probabilities is returned.
+The probability is generated from the model, and reflects
+confidence of the model that the corresponding content object
+is related to the query based on the ground truth data.</p>
+<p>On a large database, random samples are used for training, so
+this function is not deterministic.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><code class="docutils literal"><span class="pre">list</span></code> of
+((<code class="docutils literal"><span class="pre">content_id</span></code>, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>),
+probability)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<span class="target" id="module-dossier.models.features"></span><div class="section" id="feature-extraction">
+<h2>4.3. Feature extraction<a class="headerlink" href="#feature-extraction" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal"><span class="pre">dossier.models.features</span></code> provides some convenience functions for
+feature extraction.</p>
+<dl class="function">
+<dt id="dossier.models.features.noun_phrases">
+<code class="descclassname">dossier.models.features.</code><code class="descname">noun_phrases</code><span class="sig-paren">(</span><em>text</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/models/features/sip.html#noun_phrases"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.models.features.noun_phrases" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate a bag of normalized stemmed noun phrases from <code class="docutils literal"><span class="pre">text</span></code>.</p>
+<p>This is built around python&#8217;s nltk library for getting Noun
+Phrases (NPs). This is all documented in the NLTK Book
+<a class="reference external" href="http://www.nltk.org/book/ch03.html">http://www.nltk.org/book/ch03.html</a> and blog posts that cite the
+book.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">list of phrase strings with spaces replaced by <code class="docutils literal"><span class="pre">_</span></code>.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<span class="target" id="module-dossier.models.etl"></span><div class="section" id="generate-feature-collections-with-your-data">
+<h2>4.4. Generate feature collections with your data<a class="headerlink" href="#generate-feature-collections-with-your-data" title="Permalink to this headline">¶</a></h2>
+<p>This library ships with a command line program <code class="docutils literal"><span class="pre">dossier.etl</span></code> which
+provides a rudimentary pipeline for transforming data from your database
+to feature collections managed by <a class="reference internal" href="dossier.store.html#module-dossier.store" title="dossier.store"><code class="xref py py-mod docutils literal"><span class="pre">dossier.store</span></code></a>.</p>
+<p>(Currently, <code class="docutils literal"><span class="pre">dossier.etl</span></code> is hard-coded to support a specific HBase
+database, but it will be generalized as part of future work.)</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">4. <code class="docutils literal"><span class="pre">dossier.models</span></code> &#8212; Active learning</a><ul>
+<li><a class="reference internal" href="#web-services-for-active-learning-search-engines">4.1. Web services for active learning search engines</a><ul>
+<li><a class="reference internal" href="#web-service-endpoints">4.1.1. Web service endpoints</a></li>
+<li><a class="reference internal" href="#how-the-sorting-desk-browser-extension-works">4.1.2. How the Sorting Desk browser extension works</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#active-learning-pairwise-search-engines">4.2. Active learning pairwise search engines</a></li>
+<li><a class="reference internal" href="#feature-extraction">4.3. Feature extraction</a></li>
+<li><a class="reference internal" href="#generate-feature-collections-with-your-data">4.4. Generate feature collections with your data</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="dossier.label.html"
+                        title="previous chapter">3. <code class="docutils literal"><span class="pre">dossier.label</span></code> &#8212; store ground truth data as labels</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="dossier.web.html"
+                        title="next chapter">5. <code class="docutils literal"><span class="pre">dossier.web</span></code> &#8212; DossierStack web services</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dossier.models.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.web.html" title="5. dossier.web — DossierStack web services"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="dossier.label.html" title="3. dossier.label — store ground truth data as labels"
+             >previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

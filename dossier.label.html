@@ -1,0 +1,447 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>3. dossier.label — store ground truth data as labels &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="index.html" />
+    <link rel="next" title="4. dossier.models — Active learning" href="dossier.models.html" />
+    <link rel="prev" title="2. dossier.store — store feature collections" href="dossier.store.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.models.html" title="4. dossier.models — Active learning"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dossier.store.html" title="2. dossier.store — store feature collections"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-dossier.label">
+<span id="dossier-label-store-ground-truth-data-as-labels"></span><h1>3. <a class="reference internal" href="#module-dossier.label" title="dossier.label"><code class="xref py py-mod docutils literal"><span class="pre">dossier.label</span></code></a> &#8212; store ground truth data as labels<a class="headerlink" href="#module-dossier.label" title="Permalink to this headline">¶</a></h1>
+<p>A simple storage interface for labels (ground truth data).</p>
+<p><a class="reference internal" href="#module-dossier.label" title="dossier.label"><code class="xref py py-mod docutils literal"><span class="pre">dossier.label</span></code></a> provides a convenient interface to a
+<code class="xref py py-mod docutils literal"><span class="pre">kvlayer</span></code> table for storing ground truth data, otherwise known as
+&#8220;labels.&#8221; Each label, at the highest level, maps two things (addressed
+by content identifiers) to a coreferent value. This coreferent value is
+an indication by a human that these two things are &#8220;the same&#8221;, &#8220;not the
+same&#8221; or &#8220;I don&#8217;t know if they are the same.&#8221; <em>Sameness</em> in this case
+is determined by the human doing the annotation.</p>
+<p>Each label also contains an <code class="docutils literal"><span class="pre">annotator_id</span></code>, which identifies the
+human that created the label. A timestamp (in milliseconds since the
+Unix epoch) is also included on every label.</p>
+<div class="section" id="example">
+<h2>3.1. Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
+<p>Using a storage backend in your code requires a working <code class="docutils literal"><span class="pre">kvlayer</span></code>
+configuration, which is usually written in a YAML file like so:</p>
+<div class="highlight-yaml"><div class="highlight"><pre><span class="l-Scalar-Plain">kvlayer</span><span class="p-Indicator">:</span>
+  <span class="l-Scalar-Plain">app_name</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">store</span>
+  <span class="l-Scalar-Plain">namespace</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">dossier</span>
+  <span class="l-Scalar-Plain">storage_type</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">redis</span>
+  <span class="l-Scalar-Plain">storage_addresses</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span><span class="s">&quot;redis.example.com:6379&quot;</span><span class="p-Indicator">]</span>
+</pre></div>
+</div>
+<p>And here&#8217;s a full working example that uses local memory to store
+labels:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">dossier.label</span> <span class="kn">import</span> <span class="n">Label</span><span class="p">,</span> <span class="n">LabelStore</span><span class="p">,</span> <span class="n">CorefValue</span>
+<span class="kn">import</span> <span class="nn">kvlayer</span>
+<span class="kn">import</span> <span class="nn">yakonfig</span>
+
+<span class="n">yaml</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">kvlayer:</span>
+<span class="s">  app_name: store</span>
+<span class="s">  namespace: dossier</span>
+<span class="s">  storage_type: local</span>
+<span class="s">&quot;&quot;&quot;</span>
+<span class="k">with</span> <span class="n">yakonfig</span><span class="o">.</span><span class="n">defaulted_config</span><span class="p">([</span><span class="n">kvlayer</span><span class="p">],</span> <span class="n">yaml</span><span class="o">=</span><span class="n">yaml</span><span class="p">):</span>
+    <span class="n">label_store</span> <span class="o">=</span> <span class="n">LabelStore</span><span class="p">(</span><span class="n">kvlayer</span><span class="o">.</span><span class="n">client</span><span class="p">())</span>
+
+    <span class="n">lab</span> <span class="o">=</span> <span class="n">Label</span><span class="p">(</span><span class="s">&#39;a&#39;</span><span class="p">,</span> <span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="s">&#39;annotator&#39;</span><span class="p">,</span> <span class="n">CorefValue</span><span class="o">.</span><span class="n">Positive</span><span class="p">)</span>
+    <span class="n">label_store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">lab</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">lab</span> <span class="o">==</span> <span class="n">label_store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;a&#39;</span><span class="p">,</span> <span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="s">&#39;annotator&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See the documentation for <code class="xref py py-mod docutils literal"><span class="pre">yakonfig</span></code> for more details on the
+configuration setup.</p>
+<dl class="class">
+<dt id="dossier.label.LabelStore">
+<em class="property">class </em><code class="descclassname">dossier.label.</code><code class="descname">LabelStore</code><span class="sig-paren">(</span><em>kvlclient</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore" title="Permalink to this definition">¶</a></dt>
+<dd><p>A label database.</p>
+<dl class="method">
+<dt id="dossier.label.LabelStore.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>kvlclient</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new label store.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>kvlclient</strong> (<code class="xref py py-class docutils literal"><span class="pre">kvlayer._abstract_storage.AbstractStorage</span></code>) &#8211; kvlayer client</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">LabelStore</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.put">
+<code class="descname">put</code><span class="sig-paren">(</span><em>label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.put"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.put" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new label to the store.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>label</strong> (<a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a>) &#8211; label</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>cid1</em>, <em>cid2</em>, <em>annotator_id</em>, <em>subid1=''</em>, <em>subid2=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve a label from the store.</p>
+<p>When <code class="docutils literal"><span class="pre">subid1</span></code> and <code class="docutils literal"><span class="pre">subid2</span></code> are empty, then a label without
+subtopic identifiers will be returned.</p>
+<p>Note that the combination of content ids, subtopic ids and
+an annotator id <em>uniquely</em> identifies a label.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>cid1</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; content id</li>
+<li><strong>cid2</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; content id</li>
+<li><strong>annotator_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; annotator id</li>
+<li><strong>subid1</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; subtopic id</li>
+<li><strong>subid2</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; subtopic id</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first"><a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code> if no label could be found.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.directly_connected">
+<code class="descname">directly_connected</code><span class="sig-paren">(</span><em>ident</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.directly_connected"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.directly_connected" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a generator of labels connected to <code class="docutils literal"><span class="pre">ident</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">ident</span></code> may be a <code class="docutils literal"><span class="pre">content_id</span></code> or a <code class="docutils literal"><span class="pre">(content_id,</span>
+<span class="pre">subtopic_id)</span></code>.</p>
+<p>If no labels are defined for <code class="docutils literal"><span class="pre">ident</span></code>, then the generator
+will yield no labels.</p>
+<p>Note that this only returns <em>directly</em> connected labels. It
+will not follow transitive relationships.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>ident</strong> (<code class="docutils literal"><span class="pre">str</span></code> or <code class="docutils literal"><span class="pre">(str,</span> <span class="pre">str)</span></code>) &#8211; content id or (content id and subtopic id)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">generator of <a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.connected_component">
+<code class="descname">connected_component</code><span class="sig-paren">(</span><em>ident</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.connected_component"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.connected_component" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a connected component generator for <code class="docutils literal"><span class="pre">ident</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">ident</span></code> may be a <code class="docutils literal"><span class="pre">content_id</span></code> or a <code class="docutils literal"><span class="pre">(content_id,</span>
+<span class="pre">subtopic_id)</span></code>.</p>
+<p>Given an <code class="docutils literal"><span class="pre">ident</span></code>, return the corresponding connected
+component by following all positive transitivity relationships.</p>
+<p>For example, if <code class="docutils literal"><span class="pre">(a,</span> <span class="pre">b,</span> <span class="pre">1)</span></code> is a label and <code class="docutils literal"><span class="pre">(b,</span> <span class="pre">c,</span> <span class="pre">1)</span></code> is
+a label, then <code class="docutils literal"><span class="pre">connected_component('a')</span></code> will return both
+labels even though <code class="docutils literal"><span class="pre">a</span></code> and <code class="docutils literal"><span class="pre">c</span></code> are not directly connected.</p>
+<p>(Note that even though this returns a generator, it will still
+consume memory proportional to the number of labels in the
+connected component.)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>ident</strong> (<code class="docutils literal"><span class="pre">str</span></code> or <code class="docutils literal"><span class="pre">(str,</span> <span class="pre">str)</span></code>) &#8211; content id or (content id and subtopic id)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">generator of <a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.expand">
+<code class="descname">expand</code><span class="sig-paren">(</span><em>ident</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.expand"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.expand" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return expanded set of labels from a connected component.</p>
+<p>The connected component is derived from <code class="docutils literal"><span class="pre">ident</span></code>. <code class="docutils literal"><span class="pre">ident</span></code>
+may be a <code class="docutils literal"><span class="pre">content_id</span></code> or a <code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">subtopic_id)</span></code>.
+If <code class="docutils literal"><span class="pre">ident</span></code> identifies a subtopic, then expansion is done
+on a subtopic connected component (and expanded labels retain
+subtopic information).</p>
+<p>The labels returned by <a class="reference internal" href="#dossier.label.LabelStore.connected_component" title="dossier.label.LabelStore.connected_component"><code class="xref py py-meth docutils literal"><span class="pre">LabelStore.connected_component()</span></code></a>
+contains only the <a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a> stored in the
+<a class="reference internal" href="#dossier.label.LabelStore" title="dossier.label.LabelStore"><code class="xref py py-class docutils literal"><span class="pre">LabelStore</span></code></a>, and does not include the labels you can
+infer from the connected component. This method returns both
+the data-backed labels and the inferred labels.</p>
+<p>Subtopic assignments of the expanded labels will be empty. The
+<code class="docutils literal"><span class="pre">annotator_id</span></code> will be an arbitrary <code class="docutils literal"><span class="pre">annotator_id</span></code> within
+the connected component.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>content_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; content id</li>
+<li><strong>value</strong> (<a class="reference internal" href="#dossier.label.CorefValue" title="dossier.label.CorefValue"><code class="xref py py-class docutils literal"><span class="pre">CorefValue</span></code></a>) &#8211; coreferent value</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><code class="docutils literal"><span class="pre">list</span></code> of <a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.everything">
+<code class="descname">everything</code><span class="sig-paren">(</span><em>include_deleted=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.everything"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.everything" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a generator of all labels in the store.</p>
+<p>If <code class="docutils literal"><span class="pre">include_deleted</span></code> is <code class="docutils literal"><span class="pre">True</span></code>, labels that have been
+deleted are also included.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">generator of <a class="reference internal" href="#dossier.label.Label" title="dossier.label.Label"><code class="xref py py-class docutils literal"><span class="pre">Label</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.LabelStore.delete_all">
+<code class="descname">delete_all</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#LabelStore.delete_all"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.LabelStore.delete_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deletes all labels in the store.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.label.Label">
+<em class="property">class </em><code class="descclassname">dossier.label.</code><code class="descname">Label</code><a class="reference internal" href="_modules/dossier/label/label.html#Label"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label" title="Permalink to this definition">¶</a></dt>
+<dd><p>A label is an immutable unit of ground truth data.</p>
+<dl class="staticmethod">
+<dt id="dossier.label.Label.__new__">
+<em class="property">static </em><code class="descname">__new__</code><span class="sig-paren">(</span><em>content_id1</em>, <em>content_id2</em>, <em>annotator_id</em>, <em>value</em>, <em>subtopic_id1=None</em>, <em>subtopic_id2=None</em>, <em>epoch_ticks=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.__new__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.__new__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.reversed">
+<code class="descname">reversed</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.reversed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.reversed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a new label with ids swapped.</p>
+<p>This method satisfies the following law: for every label
+<code class="docutils literal"><span class="pre">lab</span></code>, <code class="docutils literal"><span class="pre">lab</span> <span class="pre">==</span> <span class="pre">lab.reversed()</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.other">
+<code class="descname">other</code><span class="sig-paren">(</span><em>content_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.other"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.other" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the other content id.</p>
+<p>If <code class="docutils literal"><span class="pre">content_id</span> <span class="pre">==</span> <span class="pre">self.content_id1</span></code>, then return
+<code class="docutils literal"><span class="pre">self.content_id2</span></code> (and vice versa).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.__lt__">
+<code class="descname">__lt__</code><span class="sig-paren">(</span><em>l1</em>, <em>l2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.__lt__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.__lt__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines a total ordering for labels.</p>
+<p>The ordering is meant to be the same as the ordering used
+in the underlying database storage. Namely, the key used
+to determine ordering is: <code class="docutils literal"><span class="pre">(cid1,</span> <span class="pre">cid2,</span> <span class="pre">subid1,</span> <span class="pre">subid2,</span>
+<span class="pre">annotator_id,</span> <span class="pre">MAX_TIME</span> <span class="pre">-</span> <span class="pre">epoch_ticks)</span></code> where <code class="docutils literal"><span class="pre">cid1</span> <span class="pre">&lt;=</span> <span class="pre">cid2</span></code>
+and <code class="docutils literal"><span class="pre">subid1</span> <span class="pre">&lt;=</span> <span class="pre">subid2</span></code>.</p>
+<p>Notably, the ordering does not include the coreferent <code class="docutils literal"><span class="pre">value</span></code>
+and it complements <code class="docutils literal"><span class="pre">epoch_ticks</span></code> so that more recent
+labels appear first in ascending order.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.__eq__">
+<code class="descname">__eq__</code><span class="sig-paren">(</span><em>l1</em>, <em>l2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.__eq__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.__eq__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Tests equality between two labels.</p>
+<p>Equality is keyed on <code class="docutils literal"><span class="pre">annotator_id</span></code> and the unordered
+comparison between content ids and subtopic ids.</p>
+<p>This definition of equality does not include the values for
+<code class="docutils literal"><span class="pre">epoch_ticks</span></code> or <code class="docutils literal"><span class="pre">value</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.__hash__">
+<code class="descname">__hash__</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.__hash__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.__hash__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a hash of this label.</p>
+<p>The hash is made up of the content ids, subtopic ids and the
+annotator id. This hash function obeys the following law:
+for all labels <code class="docutils literal"><span class="pre">x</span></code> and <code class="docutils literal"><span class="pre">y</span></code>, <code class="docutils literal"><span class="pre">x</span> <span class="pre">==</span> <span class="pre">y</span></code> if and only if
+<code class="docutils literal"><span class="pre">hash(x)</span> <span class="pre">==</span> <span class="pre">hash(y)</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.label.Label.__contains__">
+<code class="descname">__contains__</code><span class="sig-paren">(</span><em>v</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/label/label.html#Label.__contains__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.Label.__contains__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Tests membership of identifiers.</p>
+<p>If <cite>v</cite> is a tuple of <code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">subtopic_id)</span></code>, then the
+pair is checked for membership. Otherwise, <cite>v</cite> must be a <cite>str</cite>
+and is checked for equality to one of the content ids in this
+label.</p>
+<p>As a special case, if <code class="docutils literal"><span class="pre">v</span></code> is <code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">None)</span></code>, then
+<code class="docutils literal"><span class="pre">v</span></code> is treated as if it were <code class="docutils literal"><span class="pre">content_id</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.label.CorefValue">
+<em class="property">class </em><code class="descclassname">dossier.label.</code><code class="descname">CorefValue</code><a class="reference internal" href="_modules/dossier/label/label.html#CorefValue"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.label.CorefValue" title="Permalink to this definition">¶</a></dt>
+<dd><p>An enumeration that describes the value of a coreference judgment by a
+human. The judgment is always made with respect to a pair of content
+items.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><ul class="first last simple">
+<li><strong>Negative</strong> &#8211; The two items are not coreferent.</li>
+<li><strong>Unknown</strong> &#8211; It is unknown whether the two items are coreferent.</li>
+<li><strong>Positive</strong> &#8211; The two items are coreferent.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<span class="target" id="module-dossier.label.run"></span><div class="section" id="dossier-label-command-line-tool">
+<h3>3.1.1. <code class="docutils literal"><span class="pre">dossier.label</span></code> command line tool<a class="headerlink" href="#dossier-label-command-line-tool" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal"><span class="pre">dossier.label</span></code> is a command line application for viewing the raw label
+data inside the database. Generally, this is a debugging tool for developers.</p>
+<p>Run <code class="docutils literal"><span class="pre">dossier.label</span> <span class="pre">--help</span></code> for the available commands.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">3. <code class="docutils literal"><span class="pre">dossier.label</span></code> &#8212; store ground truth data as labels</a><ul>
+<li><a class="reference internal" href="#example">3.1. Example</a><ul>
+<li><a class="reference internal" href="#dossier-label-command-line-tool">3.1.1. <code class="docutils literal"><span class="pre">dossier.label</span></code> command line tool</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="dossier.store.html"
+                        title="previous chapter">2. <code class="docutils literal"><span class="pre">dossier.store</span></code> &#8212; store feature collections</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="dossier.models.html"
+                        title="next chapter">4. <code class="docutils literal"><span class="pre">dossier.models</span></code> &#8212; Active learning</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dossier.label.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.models.html" title="4. dossier.models — Active learning"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="dossier.store.html" title="2. dossier.store — store feature collections"
+             >previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

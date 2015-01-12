@@ -1,0 +1,539 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2. dossier.store — store feature collections &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="index.html" />
+    <link rel="next" title="3. dossier.label — store ground truth data as labels" href="dossier.label.html" />
+    <link rel="prev" title="1. dossier.fc — feature collections" href="dossier.fc.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.label.html" title="3. dossier.label — store ground truth data as labels"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dossier.fc.html" title="1. dossier.fc — feature collections"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-dossier.store">
+<span id="dossier-store-store-feature-collections"></span><h1>2. <a class="reference internal" href="#module-dossier.store" title="dossier.store"><code class="xref py py-mod docutils literal"><span class="pre">dossier.store</span></code></a> &#8212; store feature collections<a class="headerlink" href="#module-dossier.store" title="Permalink to this headline">¶</a></h1>
+<p>A simple storage interface for feature collections.</p>
+<p>mod:<cite>dossier.store</cite> provides a convenient interface to a mod:<cite>kvlayer</cite>
+table for storing <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>. The
+interface consists of methods to query, search, add and remove feature
+collections from the store. It also provides functions for defining and
+searching indexes.</p>
+<p>Using a storage backend in your code requires a working <code class="docutils literal"><span class="pre">kvlayer</span></code>
+configuration, which is usually written in a YAML file like so:</p>
+<div class="highlight-yaml"><div class="highlight"><pre><span class="l-Scalar-Plain">kvlayer</span><span class="p-Indicator">:</span>
+  <span class="l-Scalar-Plain">app_name</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">store</span>
+  <span class="l-Scalar-Plain">namespace</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">dossier</span>
+  <span class="l-Scalar-Plain">storage_type</span><span class="p-Indicator">:</span> <span class="l-Scalar-Plain">redis</span>
+  <span class="l-Scalar-Plain">storage_addresses</span><span class="p-Indicator">:</span> <span class="p-Indicator">[</span><span class="s">&quot;redis.example.com:6379&quot;</span><span class="p-Indicator">]</span>
+</pre></div>
+</div>
+<p>And here&#8217;s a full working example that uses local memory to store
+feature collections:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">dossier.fc</span> <span class="kn">import</span> <span class="n">FeatureCollection</span>
+<span class="kn">from</span> <span class="nn">dossier.store</span> <span class="kn">import</span> <span class="n">Store</span>
+<span class="kn">import</span> <span class="nn">kvlayer</span>
+<span class="kn">import</span> <span class="nn">yakonfig</span>
+
+<span class="n">yaml</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">kvlayer:</span>
+<span class="s">  app_name: store</span>
+<span class="s">  namespace: dossier</span>
+<span class="s">  storage_type: local</span>
+<span class="s">&quot;&quot;&quot;</span>
+<span class="k">with</span> <span class="n">yakonfig</span><span class="o">.</span><span class="n">defaulted_config</span><span class="p">([</span><span class="n">kvlayer</span><span class="p">],</span> <span class="n">yaml</span><span class="o">=</span><span class="n">yaml</span><span class="p">):</span>
+    <span class="n">store</span> <span class="o">=</span> <span class="n">Store</span><span class="p">(</span><span class="n">kvlayer</span><span class="o">.</span><span class="n">client</span><span class="p">())</span>
+
+    <span class="n">fc</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">u&#39;NAME&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s">&#39;Foo&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s">&#39;Bar&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}})</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">([(</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="n">fc</span><span class="p">)])</span>
+    <span class="k">print</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;1&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See the documentation for <code class="xref py py-mod docutils literal"><span class="pre">yakonfig</span></code> for more details on the
+configuration setup.</p>
+<p>Another example showing how to store, retrieve and delete a feature
+collection:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">fc</span> <span class="o">=</span> <span class="n">dossier</span><span class="o">.</span><span class="n">fc</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">()</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">u&#39;NAME&#39;</span><span class="p">][</span><span class="s">u&#39;foo&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">u&#39;NAME&#39;</span><span class="p">][</span><span class="s">u&#39;bar&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">42</span>
+
+<span class="n">kvl</span> <span class="o">=</span> <span class="n">kvlayer</span><span class="o">.</span><span class="n">client</span><span class="p">()</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">dossier</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">Store</span><span class="p">(</span><span class="n">kvl</span><span class="p">)</span>
+
+<span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s">&#39;{yourid}&#39;</span><span class="p">,</span> <span class="n">fc</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;{yourid}&#39;</span><span class="p">)[</span><span class="s">u&#39;NAME&#39;</span><span class="p">][</span><span class="s">u&#39;bar&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">42</span>
+<span class="n">store</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s">&#39;{yourid}&#39;</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;{yourid}&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span>
+</pre></div>
+</div>
+<p>Here is another example that demonstrates use of indexing to enable a
+poor man&#8217;s case insensitive search:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">fc</span> <span class="o">=</span> <span class="n">dossier</span><span class="o">.</span><span class="n">fc</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">()</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">u&#39;NAME&#39;</span><span class="p">][</span><span class="s">u&#39;foo&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">u&#39;NAME&#39;</span><span class="p">][</span><span class="s">u&#39;bar&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">42</span>
+
+<span class="n">kvl</span> <span class="o">=</span> <span class="n">kvlayer</span><span class="o">.</span><span class="n">client</span><span class="p">()</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">dossier</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">Store</span><span class="p">(</span><span class="n">kvl</span><span class="p">)</span>
+
+<span class="c"># Index transforms must be defined on every instance of `Store`.</span>
+<span class="c"># (The index data is persisted; the transforms themselves are</span>
+<span class="c"># ephemeral.)</span>
+<span class="n">store</span><span class="o">.</span><span class="n">define_index</span><span class="p">(</span><span class="s">u&#39;name_casei&#39;</span><span class="p">,</span>
+                   <span class="n">create</span><span class="o">=</span><span class="n">feature_index</span><span class="p">(</span><span class="s">u&#39;NAME&#39;</span><span class="p">),</span>
+                   <span class="n">transform</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">))</span>
+
+<span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="s">&#39;{yourid}&#39;</span><span class="p">,</span> <span class="n">fc</span><span class="p">)</span>  <span class="c"># `put` automatically updates indexes.</span>
+<span class="k">assert</span> <span class="nb">list</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">index_scan</span><span class="p">(</span><span class="s">u&#39;name_casei&#39;</span><span class="p">,</span> <span class="s">&#39;FoO&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;{yourid}&#39;</span>
+</pre></div>
+</div>
+<dl class="class">
+<dt id="dossier.store.Store">
+<em class="property">class </em><code class="descclassname">dossier.store.</code><code class="descname">Store</code><span class="sig-paren">(</span><em>kvlclient</em>, <em>impl=None</em>, <em>feature_indexes=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store" title="Permalink to this definition">¶</a></dt>
+<dd><p>A feature collection database.</p>
+<p>A feature collection database stores feature collections for content
+objects like profiles from external knowledge bases.</p>
+<p>Every feature collection is keyed by its <code class="docutils literal"><span class="pre">content_id</span></code>, which is a
+byte string. The value of a <code class="docutils literal"><span class="pre">content_id</span></code> is specific to the type
+of content represented by the feature collection. In other words,
+its representation is unspecified.</p>
+<dl class="method">
+<dt id="dossier.store.Store.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>kvlclient</em>, <em>impl=None</em>, <em>feature_indexes=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Connects to a feature collection store.</p>
+<p>This also initializes the underlying kvlayer namespace.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>kvl</strong> (<code class="xref py py-class docutils literal"><span class="pre">kvlayer.AbstractStorage</span></code>) &#8211; kvlayer storage client</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">Store</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>content_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve a feature collection from the store.  This is the same as
+get_many([content_id])</p>
+<p>If the feature collection does not exist <code class="docutils literal"><span class="pre">None</span></code> is
+returned.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.get_many">
+<code class="descname">get_many</code><span class="sig-paren">(</span><em>content_id_list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.get_many"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.get_many" title="Permalink to this definition">¶</a></dt>
+<dd><p>Yield (content_id, data) tuples for ids in list.</p>
+<p>As with <a class="reference internal" href="#dossier.store.Store.get" title="dossier.store.Store.get"><code class="xref py py-meth docutils literal"><span class="pre">get()</span></code></a>, if a content_id in the list is missing,
+then it is yielded with a data value of <cite>None</cite>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">yields tuple(str, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.put">
+<code class="descname">put</code><span class="sig-paren">(</span><em>items</em>, <em>indexes=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.put"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.put" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add feature collections to the store.</p>
+<p>Given an iterable of tuples of the form
+<code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">feature</span> <span class="pre">collection)</span></code>, add each to the store
+and overwrite any that already exist.</p>
+<p>This method optionally accepts a keyword argument <cite>indexes</cite>,
+which by default is set to <code class="docutils literal"><span class="pre">True</span></code>. When it is <code class="docutils literal"><span class="pre">True</span></code>,
+it will <em>create</em> new indexes for each content object for all
+indexes defined on this store.</p>
+<p>Note that this will not update existing indexes. (There is
+currently no way to do this without running some sort of
+garbage collection process.)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>items</strong> (<em>iterable</em>) &#8211; iterable of
+<code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">FeatureCollection)</span></code>.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.delete">
+<code class="descname">delete</code><span class="sig-paren">(</span><em>content_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.delete"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Delete a feature collection from the store.</p>
+<p>Deletes the content item from the store with identifier
+<code class="docutils literal"><span class="pre">content_id</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>content_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; identifier for the content object
+represented by a feature collection</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.delete_all">
+<code class="descname">delete_all</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.delete_all"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.delete_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deletes all storage.</p>
+<p>This includes every content object and all index data.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.scan">
+<code class="descname">scan</code><span class="sig-paren">(</span><em>*key_ranges</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.scan"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.scan" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve feature collections in a range of ids.</p>
+<p>Returns a generator of content objects corresponding to the
+content identifier ranges given. <cite>key_ranges</cite> can be a possibly
+empty list of 2-tuples, where the first element of the tuple
+is the beginning of a range and the second element is the end
+of a range. To specify the beginning or end of the table, use
+an empty tuple <cite>()</cite>.</p>
+<p>If the list is empty, then this yields all content objects in
+the storage.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key_ranges</strong> &#8211; as described in
+<code class="xref py py-meth docutils literal"><span class="pre">kvlayer._abstract_storage.AbstractStorage()</span></code></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">generator of
+(<code class="docutils literal"><span class="pre">content_id</span></code>, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>).</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.scan_ids">
+<code class="descname">scan_ids</code><span class="sig-paren">(</span><em>*key_ranges</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.scan_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.scan_ids" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve content ids in a range of ids.</p>
+<p>Returns a generator of <code class="docutils literal"><span class="pre">content_id</span></code> corresponding to the
+content identifier ranges given. <cite>key_ranges</cite> can be a possibly
+empty list of 2-tuples, where the first element of the tuple
+is the beginning of a range and the second element is the end
+of a range. To specify the beginning or end of the table, use
+an empty tuple <cite>()</cite>.</p>
+<p>If the list is empty, then this yields all content ids in
+the storage.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key_ranges</strong> &#8211; as described in
+<code class="xref py py-meth docutils literal"><span class="pre">kvlayer._abstract_storage.AbstractStorage()</span></code></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">generator of <code class="docutils literal"><span class="pre">content_id</span></code></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.scan_prefix">
+<code class="descname">scan_prefix</code><span class="sig-paren">(</span><em>prefix</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.scan_prefix"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.scan_prefix" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a generator of content objects matching a prefix.</p>
+<p>The <code class="docutils literal"><span class="pre">prefix</span></code> here is a prefix for <code class="docutils literal"><span class="pre">content_id</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">generator of
+(<code class="docutils literal"><span class="pre">content_id</span></code>, <a class="reference internal" href="dossier.fc.html#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>).</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.scan_prefix_ids">
+<code class="descname">scan_prefix_ids</code><span class="sig-paren">(</span><em>prefix</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.scan_prefix_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.scan_prefix_ids" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a generator of content ids matching a prefix.</p>
+<p>The <code class="docutils literal"><span class="pre">prefix</span></code> here is a prefix for <code class="docutils literal"><span class="pre">content_id</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">generator of <code class="docutils literal"><span class="pre">content_id</span></code></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<p><strong>Methods for indexing:</strong></p>
+<dl class="method">
+<dt id="dossier.store.Store.index_scan">
+<code class="descname">index_scan</code><span class="sig-paren">(</span><em>idx_name</em>, <em>val</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.index_scan"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.index_scan" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns ids that match an indexed value.</p>
+<p>Returns a generator of content identifiers that have an entry
+in the index <code class="docutils literal"><span class="pre">idx_name</span></code> with value <code class="docutils literal"><span class="pre">val</span></code> (after index
+transforms are applied).</p>
+<p>If the index named by <code class="docutils literal"><span class="pre">idx_name</span></code> is not registered, then a
+<a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a> is raised.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>idx_name</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#unicode" title="(in Python v2.7)"><em>unicode</em></a>) &#8211; name of index</li>
+<li><strong>val</strong> (unspecified (depends on the index, usually <code class="docutils literal"><span class="pre">unicode</span></code>)) &#8211; the value to use to search the index</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">generator of <code class="docutils literal"><span class="pre">content_id</span></code></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.index_scan_prefix">
+<code class="descname">index_scan_prefix</code><span class="sig-paren">(</span><em>idx_name</em>, <em>val_prefix</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.index_scan_prefix"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.index_scan_prefix" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns ids that match a prefix of an indexed value.</p>
+<p>Returns a generator of content identifiers that have an entry
+in the index <code class="docutils literal"><span class="pre">idx_name</span></code> with prefix <code class="docutils literal"><span class="pre">val_prefix</span></code> (after
+index transforms are applied).</p>
+<p>If the index named by <code class="docutils literal"><span class="pre">idx_name</span></code> is not registered, then a
+<a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a> is raised.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>idx_name</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#unicode" title="(in Python v2.7)"><em>unicode</em></a>) &#8211; name of index</li>
+<li><strong>val_prefix</strong> &#8211; the value to use to search the index</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">generator of <code class="docutils literal"><span class="pre">content_id</span></code></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.index_scan_prefix_and_return_key">
+<code class="descname">index_scan_prefix_and_return_key</code><span class="sig-paren">(</span><em>idx_name</em>, <em>val_prefix</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.index_scan_prefix_and_return_key"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.index_scan_prefix_and_return_key" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns ids that match a prefix of an indexed value, and the
+specific key that matched the search prefix.</p>
+<p>Returns a generator of (index key, content identifier) that
+have an entry in the index <code class="docutils literal"><span class="pre">idx_name</span></code> with prefix
+<code class="docutils literal"><span class="pre">val_prefix</span></code> (after index transforms are applied).</p>
+<p>If the index named by <code class="docutils literal"><span class="pre">idx_name</span></code> is not registered, then a
+<a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a> is raised.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>idx_name</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#unicode" title="(in Python v2.7)"><em>unicode</em></a>) &#8211; name of index</li>
+<li><strong>val_prefix</strong> &#8211; the value to use to search the index</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">generator of (<code class="docutils literal"><span class="pre">index</span> <span class="pre">key</span></code>, <code class="docutils literal"><span class="pre">content_id</span></code>)</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><a class="reference external" href="http://docs.python.org/library/exceptions.html#exceptions.KeyError" title="(in Python v2.7)"><code class="xref py py-exc docutils literal"><span class="pre">KeyError</span></code></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.store.Store.define_index">
+<code class="descname">define_index</code><span class="sig-paren">(</span><em>idx_name</em>, <em>create</em>, <em>transform</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#Store.define_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.Store.define_index" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add an index to this store instance.</p>
+<p>Adds an index transform to the current FC store. Once an index
+with name <code class="docutils literal"><span class="pre">idx_name</span></code> is added, it will be available in all
+<code class="docutils literal"><span class="pre">index_*</span></code> methods. Additionally, the index will be automatically
+updated on calls to <code class="xref py py-meth docutils literal"><span class="pre">put()</span></code>.</p>
+<p>If an index with name <code class="docutils literal"><span class="pre">idx_name</span></code> already exists, then it is
+overwritten.</p>
+<p>Note that indexes do <em>not</em> persist. They must be re-defined for
+each instance of <a class="reference internal" href="#dossier.store.Store" title="dossier.store.Store"><code class="xref py py-class docutils literal"><span class="pre">Store</span></code></a>.</p>
+<p>For example, to add an index on the <code class="docutils literal"><span class="pre">boNAME</span></code> feature, you can
+use the <code class="docutils literal"><span class="pre">feature_index</span></code> helper function:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">store</span><span class="o">.</span><span class="n">define_index</span><span class="p">(</span><span class="s">&#39;boNAME&#39;</span><span class="p">,</span>
+                   <span class="n">feature_index</span><span class="p">(</span><span class="s">&#39;boNAME&#39;</span><span class="p">),</span>
+                   <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Another example for creating an index on names:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">store</span><span class="o">.</span><span class="n">define_index</span><span class="p">(</span><span class="s">&#39;NAME&#39;</span><span class="p">,</span>
+                   <span class="n">feature_index</span><span class="p">(</span><span class="s">&#39;canonical_name&#39;</span><span class="p">,</span> <span class="s">&#39;NAME&#39;</span><span class="p">),</span>
+                   <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>idx_name</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#unicode" title="(in Python v2.7)"><em>unicode</em></a>) &#8211; The name of the index. Must be UTF-8 encodable.</li>
+<li><strong>create</strong> &#8211; A function that accepts the <code class="docutils literal"><span class="pre">transform</span></code> function and
+a pair of <code class="docutils literal"><span class="pre">(content_id,</span> <span class="pre">fc)</span></code> and produces a generator
+of index values from the pair given using <code class="docutils literal"><span class="pre">transform</span></code>.</li>
+<li><strong>transform</strong> &#8211; A function that accepts an arbitrary value and
+applies a transform to it. This transforms the
+<em>stored</em> value to the <em>index</em> value. This <em>must</em>
+produce a value with type <cite>str</cite> (or <cite>bytes</cite>).</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="dossier.store.feature_index">
+<code class="descclassname">dossier.store.</code><code class="descname">feature_index</code><span class="sig-paren">(</span><em>*feature_names</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/store/store.html#feature_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.store.feature_index" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a index creation function.</p>
+<p>Returns a valid index <code class="docutils literal"><span class="pre">create</span></code> function for the feature names
+given. This can be used with the <a class="reference internal" href="#dossier.store.Store.define_index" title="dossier.store.Store.define_index"><code class="xref py py-meth docutils literal"><span class="pre">Store.define_index()</span></code></a>
+method to create indexes on any combination of features in a
+feature collection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><code class="docutils literal"><span class="pre">(val</span> <span class="pre">-&gt;</span> <span class="pre">index</span> <span class="pre">val)</span>
+<span class="pre">-&gt;</span> <span class="pre">(content_id,</span> <span class="pre">FeatureCollection)</span>
+<span class="pre">-&gt;</span> <span class="pre">generator</span> <span class="pre">of</span> <span class="pre">[index</span> <span class="pre">val]</span></code></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="dossier.fc.html"
+                        title="previous chapter">1. <code class="docutils literal"><span class="pre">dossier.fc</span></code> &#8212; feature collections</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="dossier.label.html"
+                        title="next chapter">3. <code class="docutils literal"><span class="pre">dossier.label</span></code> &#8212; store ground truth data as labels</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dossier.store.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="dossier.label.html" title="3. dossier.label — store ground truth data as labels"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="dossier.fc.html" title="1. dossier.fc — feature collections"
+             >previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

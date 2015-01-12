@@ -1,0 +1,723 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.web.routes &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.web.routes</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Web service for active learning</span>
+<span class="sd">===============================</span>
+<span class="sd">dossier.web.routes.app is a REST stateful web service that can</span>
+<span class="sd">drive Dossier Stack&#39;s an active ranking models and user interface, as</span>
+<span class="sd">well as other search technologies.</span>
+
+<span class="sd">.. This software is released under an MIT/X11 open source license.</span>
+<span class="sd">   Copyright 2012-2014 Diffeo, Inc.</span>
+
+<span class="sd">There are only a few API end points. They provide searching, storage</span>
+<span class="sd">and retrieval of feature collections along with storage of ground</span>
+<span class="sd">truth data as labels. Labels are typically used in the implementation</span>
+<span class="sd">of a search engine to filter or improve the recommendations returned.</span>
+
+<span class="sd">The API end points are documented as functions in this module.</span>
+
+<span class="sd">.. autofunction:: v1_search</span>
+<span class="sd">.. autofunction:: v1_search_engines</span>
+<span class="sd">.. autofunction:: v1_fc_get</span>
+<span class="sd">.. autofunction:: v1_fc_put</span>
+<span class="sd">.. autofunction:: v1_random_fc_get</span>
+<span class="sd">.. autofunction:: v1_label_put</span>
+<span class="sd">.. autofunction:: v1_label_direct</span>
+<span class="sd">.. autofunction:: v1_label_connected</span>
+<span class="sd">.. autofunction:: v1_label_expanded</span>
+<span class="sd">.. autofunction:: v1_label_negative_inference</span>
+
+
+<span class="sd">Managing folders and sub-folders</span>
+<span class="sd">================================</span>
+<span class="sd">In many places where active learning is used, it can be useful to</span>
+<span class="sd">provide the user with a means to group and categorize topics. In an</span>
+<span class="sd">active learning setting, it is essential that we try to capture a</span>
+<span class="sd">user&#39;s grouping of topics so that it can be used for ground truth data.</span>
+<span class="sd">To that end, ``dossier.web`` exposes a set of web service endpoints</span>
+<span class="sd">for managing folders and subfolders for a particular user. Folders and</span>
+<span class="sd">subfolders are stored and managed by :mod:`dossier.label`, which means</span>
+<span class="sd">they are automatically available as ground truth data.</span>
+
+<span class="sd">The actual definition of what a folder or subfolder is depends on the</span>
+<span class="sd">task the user is trying to perform. We tend to think of a folder as a</span>
+<span class="sd">general topic and a subfolder as a more specific topic or &quot;subtopic.&quot;</span>
+<span class="sd">For example, a topic might be &quot;cars&quot; and some subtopics might be</span>
+<span class="sd">&quot;dealerships with cars I want to buy&quot; or &quot;electric cars.&quot;</span>
+
+<span class="sd">The following end points allow one to add or list folders and</span>
+<span class="sd">subfolders. There is also an endpoint for listing all of the items</span>
+<span class="sd">in a single subfolder, where each item is a pair of ``(content_id,</span>
+<span class="sd">subtopic_id)``.</span>
+
+<span class="sd">In general, the identifier of a folder/subfolder is also used as its</span>
+<span class="sd">name, similar to how identifiers in Wikipedia work. For example, if</span>
+<span class="sd">a folder has a name &quot;My Cars&quot;, then its identifier is ``My_Cars``.</span>
+<span class="sd">More specifically, given any folder name ``NAME``, its corresponding</span>
+<span class="sd">identifier can be obtained with ``NAME.replace(&#39; &#39;, &#39;_&#39;)``.</span>
+
+<span class="sd">All web routes accept and return *identifiers* (so space characters are</span>
+<span class="sd">disallowed).</span>
+
+<span class="sd">(Currently, there is no simple way to modify the name of an existing</span>
+<span class="sd">folder or sub-folder. There is also no simple way to delete an existing</span>
+<span class="sd">folder or sub-folder.)</span>
+
+<span class="sd">.. autofunction:: v1_folder_list</span>
+<span class="sd">.. autofunction:: v1_folder_add</span>
+<span class="sd">.. autofunction:: v1_subfolder_list</span>
+<span class="sd">.. autofunction:: v1_subfolder_add</span>
+<span class="sd">.. autofunction:: v1_subtopic_list</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">groupby</span><span class="p">,</span> <span class="n">imap</span><span class="p">,</span> <span class="n">islice</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os.path</span> <span class="kn">as</span> <span class="nn">path</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">urlparse</span>
+
+<span class="kn">import</span> <span class="nn">bottle</span>
+
+<span class="kn">from</span> <span class="nn">dossier.fc</span> <span class="kn">import</span> <span class="n">FeatureCollection</span><span class="p">,</span> <span class="n">StringCounter</span>
+<span class="kn">from</span> <span class="nn">dossier.label</span> <span class="kn">import</span> <span class="n">Label</span><span class="p">,</span> <span class="n">CorefValue</span>
+<span class="kn">from</span> <span class="nn">dossier.web.search_engines</span> <span class="kn">import</span> <span class="n">streaming_sample</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">bottle</span><span class="o">.</span><span class="n">Bottle</span><span class="p">()</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+<span class="n">web_static_path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">__file__</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="s">&#39;static&#39;</span><span class="p">)</span>
+
+
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/static/&lt;name:path&gt;&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">v1_static</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">bottle</span><span class="o">.</span><span class="n">static_file</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">root</span><span class="o">=</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">web_static_path</span><span class="p">,</span> <span class="s">&#39;v1&#39;</span><span class="p">))</span>
+
+
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/feature-collection/&lt;cid&gt;/search/&lt;engine_name&gt;&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_search"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_search">[docs]</a><span class="k">def</span> <span class="nf">v1_search</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">search_engines</span><span class="p">,</span> <span class="n">filter_preds</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">engine_name</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Search feature collections.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``/dossier/v1/&lt;content_id&gt;/search/&lt;search_engine_name&gt;``.</span>
+
+<span class="sd">    ``content_id`` can be any *profile* content identifier. (This</span>
+<span class="sd">    restriction may be lifted at some point.) Namely, it must start</span>
+<span class="sd">    with ``p|``.</span>
+
+<span class="sd">    ``engine_name`` corresponds to the search strategy to</span>
+<span class="sd">    use. The list of available search engines can be retrieved with the</span>
+<span class="sd">    :func:`v1_search_engines` endpoint.</span>
+
+<span class="sd">    This endpoint returns a JSON payload which is an object with a</span>
+<span class="sd">    single key, ``results``. ``results`` is a list of objects, where</span>
+<span class="sd">    the objects each have ``content_id`` and ``fc`` attributes.</span>
+<span class="sd">    ``content_id`` is the unique identifier for the result returned,</span>
+<span class="sd">    and ``fc`` is a JSON serialization of a feature collection.</span>
+
+<span class="sd">    There are also two query parameters:</span>
+
+<span class="sd">    * **limit** limits the number of results to the number given.</span>
+<span class="sd">    * **filter** sets the filtering function. The default</span>
+<span class="sd">      filter function, ``already_labeled``, will filter out any</span>
+<span class="sd">      feature collections that have already been labeled with the</span>
+<span class="sd">      query ``content_id``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">omit_fc</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;omit_fc&#39;</span><span class="p">,</span> <span class="s">&#39;0&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s">&#39;1&#39;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">search_engine</span> <span class="o">=</span> <span class="n">search_engines</span><span class="p">[</span><span class="n">engine_name</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span>
+            <span class="s">&#39;Search engine &quot;</span><span class="si">%s</span><span class="s">&quot; does not exist.&#39;</span> <span class="o">%</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+
+    <span class="n">filter_names</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">getall</span><span class="p">(</span><span class="s">&#39;filter&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[</span><span class="s">&#39;already_labeled&#39;</span><span class="p">]</span>
+    <span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;filter&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>  <span class="c"># remove from query dict</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">init_filter_preds</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_preds</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">filter_names</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span>
+            <span class="s">&#39;Rank filter &quot;</span><span class="si">%s</span><span class="s">&quot; does not exist.&#39;</span> <span class="o">%</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+    <span class="n">search_engine</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">search_engine</span><span class="p">)</span>
+
+    <span class="n">filter_pred</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="bp">True</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">init_filter_preds</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">preds</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">p</span><span class="p">)(</span><span class="n">cid</span><span class="p">),</span> <span class="n">init_filter_preds</span><span class="p">)</span>
+        <span class="n">filter_pred</span> <span class="o">=</span> <span class="k">lambda</span> <span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">):</span> <span class="nb">all</span><span class="p">(</span><span class="n">p</span><span class="p">((</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">preds</span><span class="p">)</span>
+
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="p">)</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;filter_pred&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">filter_pred</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;limit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_to_max_int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;limit&#39;</span><span class="p">),</span> <span class="mi">100</span><span class="p">)</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="n">search_engine</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">transformed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s">&#39;results&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">cid</span><span class="p">,</span> <span class="n">fc</span> <span class="o">=</span> <span class="n">t</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="s">&#39;Invalid search result: &quot;</span><span class="si">%r</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="n">t</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">info</span>
+        <span class="n">result</span><span class="p">[</span><span class="s">&#39;content_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cid</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">omit_fc</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="s">&#39;fc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fc_to_json</span><span class="p">(</span><span class="n">fc</span><span class="p">)</span>
+        <span class="n">transformed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">[</span><span class="s">&#39;results&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">transformed</span>
+    <span class="k">return</span> <span class="n">results</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/search_engines&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_search_engines"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_search_engines">[docs]</a><span class="k">def</span> <span class="nf">v1_search_engines</span><span class="p">(</span><span class="n">search_engines</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;List available search engines.</span>
+
+<span class="sd">    The route for this endpoint is: ``/dossier/v1/search_engines``.</span>
+
+<span class="sd">    This endpoint returns a JSON payload which is an object with two</span>
+<span class="sd">    keys: ``default`` and ``names``. ``default`` corresponds to a</span>
+<span class="sd">    chosen default search engine. This value will *always* correspond</span>
+<span class="sd">    to a valid search engine. ``names`` is an array of all available</span>
+<span class="sd">    search engines (including ``default``).</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c">## explain where search_engines comes from...</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">search_engines</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/feature-collection/&lt;cid&gt;&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_fc_get"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_fc_get">[docs]</a><span class="k">def</span> <span class="nf">v1_fc_get</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">cid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Retrieve a single feature collection.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``/dossier/v1/feature-collections/&lt;content_id&gt;``.</span>
+
+<span class="sd">    This endpoint returns a JSON serialization of the feature collection</span>
+<span class="sd">    identified by ``content_id``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">fc</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cid</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="s">&#39;Feature collection &quot;</span><span class="si">%s</span><span class="s">&quot; does not exist.&#39;</span> <span class="o">%</span> <span class="n">cid</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fc_to_json</span><span class="p">(</span><span class="n">fc</span><span class="p">)</span>
+
+</div>
+<span class="nd">@app.put</span><span class="p">(</span><span class="s">&#39;/dossier/v1/feature-collection/&lt;cid&gt;&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_fc_put"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_fc_put">[docs]</a><span class="k">def</span> <span class="nf">v1_fc_put</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">cid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Store a single feature collection.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``PUT /dossier/v1/feature-collections/&lt;content_id&gt;``.</span>
+
+<span class="sd">    ``content_id`` is the id to associate with the given feature</span>
+<span class="sd">    collection. The feature collection should be in the request</span>
+<span class="sd">    body serialized as JSON.</span>
+
+<span class="sd">    This endpoint returns status ``201`` upon successful storage.</span>
+<span class="sd">    An existing feature collection with id ``content_id`` is</span>
+<span class="sd">    overwritten.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">fc</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="p">))</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">([(</span><span class="n">cid</span><span class="p">,</span> <span class="n">fc</span><span class="p">)])</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="mi">201</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/random/feature-collection&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_random_fc_get"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_random_fc_get">[docs]</a><span class="k">def</span> <span class="nf">v1_random_fc_get</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">store</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Retrieves a random feature collection from the database.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``GET /dossier/v1/random/feature-collection``.</span>
+
+<span class="sd">    Assuming the database has at least one feature collection,</span>
+<span class="sd">    this end point returns an array of two elements. The first</span>
+<span class="sd">    element is the content id and the second element is a</span>
+<span class="sd">    feature collection (in the same format returned by</span>
+<span class="sd">    :func:`dossier.web.routes.v1_fc_get`).</span>
+
+<span class="sd">    If the database is empty, then a 404 error is returned.</span>
+
+<span class="sd">    Note that currently, this may not be a uniformly random sample.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c"># Careful, `store.scan()` would be obscenely slow here...</span>
+    <span class="n">sample</span> <span class="o">=</span> <span class="n">streaming_sample</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">scan_ids</span><span class="p">(),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="s">&#39;The feature collection store is empty.&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fc_to_json</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">]))]</span>
+
+</div>
+<span class="nd">@app.put</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid1&gt;/&lt;cid2&gt;/&lt;annotator_id&gt;&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_label_put"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_label_put">[docs]</a><span class="k">def</span> <span class="nf">v1_label_put</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">label_hooks</span><span class="p">,</span>
+                 <span class="n">label_store</span><span class="p">,</span> <span class="n">cid1</span><span class="p">,</span> <span class="n">cid2</span><span class="p">,</span> <span class="n">annotator_id</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Store a single label.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``PUT /dossier/v1/labels/&lt;content_id1&gt;/&lt;content_id2&gt;/&lt;annotator_id&gt;``.</span>
+
+<span class="sd">    ``content_id`` are the ids of the feature collections to</span>
+<span class="sd">    associate. ``annotator_id`` is a string that identifies the</span>
+<span class="sd">    human that created the label. The value of the label should</span>
+<span class="sd">    be in the request body as one of the following three values:</span>
+<span class="sd">    ``-1`` for not coreferent, ``0`` for &quot;I don&#39;t know if they</span>
+<span class="sd">    are coreferent&quot; and ``1`` for coreferent.</span>
+
+<span class="sd">    Optionally, the query parameters ``subtopic_id1`` and</span>
+<span class="sd">    ``subtopic_id2`` may be specified. Neither, both or either may</span>
+<span class="sd">    be given. ``subtopic_id1`` corresponds to a subtopic in</span>
+<span class="sd">    ``content_id1`` and ``subtopic_id2`` corresponds to a subtopic</span>
+<span class="sd">    in ``content_id2``.</span>
+
+<span class="sd">    This endpoint returns status ``201`` upon successful storage.</span>
+<span class="sd">    Any existing labels with the given ids are overwritten.</span>
+
+<span class="sd">    After the label is stored, any label hooks passed via ``label_hooks``</span>
+<span class="sd">    are executed. Each label hook should satisfy</span>
+<span class="sd">    ``yakonfig.AutoFactory``. Once created, the label hook should be</span>
+<span class="sd">    a function of one parameter: a :class:`dossier.label.Label`.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">coref_value</span> <span class="o">=</span> <span class="n">CorefValue</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">body</span><span class="o">.</span><span class="n">read</span><span class="p">()))</span>
+    <span class="n">lab</span> <span class="o">=</span> <span class="n">Label</span><span class="p">(</span><span class="n">cid1</span><span class="p">,</span> <span class="n">cid2</span><span class="p">,</span> <span class="n">annotator_id</span><span class="p">,</span> <span class="n">coref_value</span><span class="p">,</span>
+                <span class="n">subtopic_id1</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;subtopic_id1&#39;</span><span class="p">),</span>
+                <span class="n">subtopic_id2</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;subtopic_id2&#39;</span><span class="p">))</span>
+    <span class="n">label_store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">lab</span><span class="p">)</span>
+
+    <span class="c"># Run our hooks</span>
+    <span class="k">for</span> <span class="n">label_hook_configurable</span> <span class="ow">in</span> <span class="n">label_hooks</span><span class="p">:</span>
+        <span class="n">label_hook</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">label_hook_configurable</span><span class="p">)</span>
+        <span class="n">label_hook</span><span class="p">(</span><span class="n">lab</span><span class="p">)</span>
+
+    <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="mi">201</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/direct&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/direct&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_label_direct"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_label_direct">[docs]</a><span class="k">def</span> <span class="nf">v1_label_direct</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return directly connected labels.</span>
+
+<span class="sd">    The routes for this endpoint are</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/direct`` and</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/direct``.</span>
+
+<span class="sd">    This returns all directly connected labels for ``cid``. Or, if</span>
+<span class="sd">    a subtopic id is given, then only directly connected labels for</span>
+<span class="sd">    ``(cid, subid)`` are returned.</span>
+
+<span class="sd">    The data returned is a JSON list of labels. Each label is a</span>
+<span class="sd">    dictionary with the following keys: ``content_id1``,</span>
+<span class="sd">    ``content_id2``, ``subtopic_id1``, ``subtopic_id2``,</span>
+<span class="sd">    ``annotator_id``, ``epoch_ticks`` and ``value``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">ident</span> <span class="o">=</span> <span class="n">make_ident</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="p">)</span>
+    <span class="n">labs</span> <span class="o">=</span> <span class="n">imap</span><span class="p">(</span><span class="n">label_to_json</span><span class="p">,</span> <span class="n">label_store</span><span class="o">.</span><span class="n">directly_connected</span><span class="p">(</span><span class="n">ident</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">paginate</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">labs</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/connected&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/connected&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_label_connected"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_label_connected">[docs]</a><span class="k">def</span> <span class="nf">v1_label_connected</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return a connected component of positive labels.</span>
+
+<span class="sd">    The routes for this endpoint are</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/connected`` and</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/connected``.</span>
+
+<span class="sd">    This returns the edges for the connected component of</span>
+<span class="sd">    either ``cid`` or ``(cid, subid)`` if a subtopic identifier</span>
+<span class="sd">    is given.</span>
+
+<span class="sd">    The data returned is a JSON list of labels. Each label is a</span>
+<span class="sd">    dictionary with the following keys: ``content_id1``,</span>
+<span class="sd">    ``content_id2``, ``subtopic_id1``, ``subtopic_id2``,</span>
+<span class="sd">    ``annotator_id``, ``epoch_ticks`` and ``value``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">ident</span> <span class="o">=</span> <span class="n">make_ident</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="p">)</span>
+    <span class="n">labs</span> <span class="o">=</span> <span class="n">imap</span><span class="p">(</span><span class="n">label_to_json</span><span class="p">,</span> <span class="n">label_store</span><span class="o">.</span><span class="n">connected_component</span><span class="p">(</span><span class="n">ident</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">paginate</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">labs</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/expanded&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/expanded&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_label_expanded"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_label_expanded">[docs]</a><span class="k">def</span> <span class="nf">v1_label_expanded</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return an expansion of the connected component of positive labels.</span>
+
+<span class="sd">    The routes for this endpoint are</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/expanded`` and</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/subtopic/&lt;subid&gt;/expanded``.</span>
+
+<span class="sd">    This returns the edges for the expansion of the connected component</span>
+<span class="sd">    of either ``cid`` or ``(cid, subid)`` if a subtopic identifier is</span>
+<span class="sd">    given. Note that the expansion of a set of labels does not provide</span>
+<span class="sd">    any new information content over a connected component. It is</span>
+<span class="sd">    provided as a convenience for clients that want all possible labels</span>
+<span class="sd">    in a connected component, regardless of whether one explicitly</span>
+<span class="sd">    exists or not.</span>
+
+<span class="sd">    The data returned is a JSON list of labels. Each label is a</span>
+<span class="sd">    dictionary with the following keys: ``content_id1``,</span>
+<span class="sd">    ``content_id2``, ``subtopic_id1``, ``subtopic_id2``,</span>
+<span class="sd">    ``annotator_id``, ``epoch_ticks`` and ``value``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">ident</span> <span class="o">=</span> <span class="n">make_ident</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="p">)</span>
+    <span class="n">labs</span> <span class="o">=</span> <span class="n">imap</span><span class="p">(</span><span class="n">label_to_json</span><span class="p">,</span> <span class="n">label_store</span><span class="o">.</span><span class="n">connected_component</span><span class="p">(</span><span class="n">ident</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">paginate</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">labs</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/label/&lt;cid&gt;/negative-inference&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_label_negative_inference"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_label_negative_inference">[docs]</a><span class="k">def</span> <span class="nf">v1_label_negative_inference</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">cid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Return inferred negative labels.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``/dossier/v1/label/&lt;cid&gt;/negative-inference``.</span>
+
+<span class="sd">    Negative labels are inferred by first getting all other content ids</span>
+<span class="sd">    connected to ``cid`` through a negative label. For each directly</span>
+<span class="sd">    adjacent ``cid&#39;``, the connected components of ``cid`` and</span>
+<span class="sd">    ``cid&#39;`` are traversed to find negative labels.</span>
+
+<span class="sd">    The data returned is a JSON list of labels. Each label is a</span>
+<span class="sd">    dictionary with the following keys: ``content_id1``,</span>
+<span class="sd">    ``content_id2``, ``subtopic_id1``, ``subtopic_id2``,</span>
+<span class="sd">    ``annotator_id``, ``epoch_ticks`` and ``value``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c"># No subtopics yet? :-(</span>
+    <span class="n">labs</span> <span class="o">=</span> <span class="n">imap</span><span class="p">(</span><span class="n">label_to_json</span><span class="p">,</span> <span class="n">label_store</span><span class="o">.</span><span class="n">negative_inference</span><span class="p">(</span><span class="n">cid</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">paginate</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">labs</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/folder&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_folder_list"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_folder_list">[docs]</a><span class="k">def</span> <span class="nf">v1_folder_list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">store</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Retrieves a list of folders for the current user.</span>
+
+<span class="sd">    The route for this endpoint is: ``GET /dossier/v1/folder``.</span>
+
+<span class="sd">    (Temporarily, the &quot;current user&quot; can be set via the</span>
+<span class="sd">    ``annotator_id`` query parameter.)</span>
+
+<span class="sd">    The payload returned is a list of folder identifiers.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">annotator_id</span> <span class="o">=</span> <span class="n">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="s">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s">&#39;topic&#39;</span><span class="p">,</span> <span class="n">annotator_id</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">])</span>  <span class="c"># break the abstraction!</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Scanning for folders with prefix </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">prefix</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">cid</span><span class="p">:</span> <span class="n">unwrap_folder_content_id</span><span class="p">(</span><span class="n">cid</span><span class="p">)[</span><span class="s">&#39;folder_id&#39;</span><span class="p">],</span>
+               <span class="n">store</span><span class="o">.</span><span class="n">scan_prefix_ids</span><span class="p">(</span><span class="n">prefix</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.put</span><span class="p">(</span><span class="s">&#39;/dossier/v1/folder/&lt;fid&gt;&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_folder_add"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_folder_add">[docs]</a><span class="k">def</span> <span class="nf">v1_folder_add</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">fid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Adds a folder belonging to the current user.</span>
+
+<span class="sd">    The route for this endpoint is: ``PUT /dossier/v1/folder/&lt;fid&gt;``.</span>
+
+<span class="sd">    If the folder was added successfully, ``201`` status is returned.</span>
+
+<span class="sd">    (Temporarily, the &quot;current user&quot; can be set via the</span>
+<span class="sd">    ``annotator_id`` query parameter.)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">fid</span><span class="p">)</span>
+    <span class="n">annotator_id</span> <span class="o">=</span> <span class="n">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+
+    <span class="n">content_id</span> <span class="o">=</span> <span class="n">wrap_folder_content_id</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span><span class="p">)</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">([(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">FeatureCollection</span><span class="p">())])</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Added folder </span><span class="si">%r</span><span class="s"> with content id </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">fid</span><span class="p">,</span> <span class="n">content_id</span><span class="p">)</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">satus</span> <span class="o">=</span> <span class="mi">201</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/folder/&lt;fid&gt;/subfolder&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_subfolder_list"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_subfolder_list">[docs]</a><span class="k">def</span> <span class="nf">v1_subfolder_list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">fid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Retrieves a list of subfolders in a folder for the current user.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``GET /dossier/v1/folder/&lt;fid&gt;/subfolder``.</span>
+
+<span class="sd">    (Temporarily, the &quot;current user&quot; can be set via the</span>
+<span class="sd">    ``annotator_id`` query parameter.)</span>
+
+<span class="sd">    The payload returned is a list of subfolder identifiers.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">fid</span><span class="p">)</span>
+    <span class="n">annotator_id</span> <span class="o">=</span> <span class="n">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+
+    <span class="n">folder_content_id</span> <span class="o">=</span> <span class="n">wrap_folder_content_id</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="s">&quot;Folder &#39;</span><span class="si">%s</span><span class="s">&#39; does not exist.&quot;</span> <span class="o">%</span> <span class="n">fid</span><span class="p">)</span>
+    <span class="n">all_labels</span> <span class="o">=</span> <span class="n">label_store</span><span class="o">.</span><span class="n">directly_connected</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">dedup</span><span class="p">(</span><span class="n">la</span><span class="o">.</span><span class="n">subtopic_for</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span> <span class="k">for</span> <span class="n">la</span> <span class="ow">in</span> <span class="n">all_labels</span><span class="p">))</span>
+
+</div>
+<span class="nd">@app.put</span><span class="p">(</span><span class="s">&#39;/dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;/&lt;cid&gt;/&lt;subid&gt;&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_subfolder_add"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_subfolder_add">[docs]</a><span class="k">def</span> <span class="nf">v1_subfolder_add</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span>
+                     <span class="n">fid</span><span class="p">,</span> <span class="n">sfid</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Adds a subtopic to a subfolder for the current user.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``PUT /dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;/&lt;cid&gt;/&lt;subid&gt;``.</span>
+
+<span class="sd">    ``fid`` is the folder identifier, e.g., ``My_Folder``.</span>
+
+<span class="sd">    ``sfid`` is the subfolder identifier, e.g., ``My_Subtopic``.</span>
+
+<span class="sd">    ``cid`` and ``subid`` are the content id and subtopic id of the</span>
+<span class="sd">    subtopic being added to the subfolder.</span>
+
+<span class="sd">    If the subfolder does not already exist, it is created</span>
+<span class="sd">    automatically. N.B. An empty subfolder cannot exist!</span>
+
+<span class="sd">    If the subtopic was added successfully, ``201`` status is returned.</span>
+
+<span class="sd">    (Temporarily, the &quot;current user&quot; can be set via the</span>
+<span class="sd">    ``annotator_id`` query parameter.)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">fid</span><span class="p">)</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">sfid</span><span class="p">)</span>
+    <span class="n">annotator_id</span> <span class="o">=</span> <span class="n">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="n">folder_content_id</span> <span class="o">=</span> <span class="n">wrap_folder_content_id</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span><span class="p">)</span>
+    <span class="n">subfolder_subtopic_id</span> <span class="o">=</span> <span class="n">wrap_subfolder_subtopic_id</span><span class="p">(</span><span class="n">sfid</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="s">&quot;Folder &#39;</span><span class="si">%s</span><span class="s">&#39; does not exist.&quot;</span> <span class="o">%</span> <span class="n">fid</span><span class="p">)</span>
+
+    <span class="n">lab</span> <span class="o">=</span> <span class="n">Label</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">annotator_id</span><span class="p">,</span> <span class="n">CorefValue</span><span class="o">.</span><span class="n">Positive</span><span class="p">,</span>
+                <span class="n">subtopic_id1</span><span class="o">=</span><span class="n">subfolder_subtopic_id</span><span class="p">,</span>
+                <span class="n">subtopic_id2</span><span class="o">=</span><span class="n">subid</span><span class="p">)</span>
+    <span class="n">label_store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">lab</span><span class="p">)</span>
+    <span class="n">response</span><span class="o">.</span><span class="n">satus</span> <span class="o">=</span> <span class="mi">201</span>
+
+</div>
+<span class="nd">@app.get</span><span class="p">(</span><span class="s">&#39;/dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="viewcode-block" id="v1_subtopic_list"><a class="viewcode-back" href="../../../dossier.web.html#dossier.web.routes.v1_subtopic_list">[docs]</a><span class="k">def</span> <span class="nf">v1_subtopic_list</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">label_store</span><span class="p">,</span> <span class="n">fid</span><span class="p">,</span> <span class="n">sfid</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Retrieves a list of items in a subfolder.</span>
+
+<span class="sd">    The route for this endpoint is:</span>
+<span class="sd">    ``GET /dossier/v1/folder/&lt;fid&gt;/subfolder/&lt;sfid&gt;``.</span>
+
+<span class="sd">    (Temporarily, the &quot;current user&quot; can be set via the</span>
+<span class="sd">    ``annotator_id`` query parameter.)</span>
+
+<span class="sd">    The payload returned is a list of two element arrays. The first</span>
+<span class="sd">    element in the array is the item&#39;s content id and the second</span>
+<span class="sd">    element is the item&#39;s subtopic id.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">fid</span><span class="p">)</span>
+    <span class="n">assert_valid_folder_id</span><span class="p">(</span><span class="n">sfid</span><span class="p">)</span>
+    <span class="n">annotator_id</span> <span class="o">=</span> <span class="n">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="n">folder_content_id</span> <span class="o">=</span> <span class="n">wrap_folder_content_id</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span><span class="p">)</span>
+    <span class="n">subfolder_subtopic_id</span> <span class="o">=</span> <span class="n">wrap_subfolder_subtopic_id</span><span class="p">(</span><span class="n">sfid</span><span class="p">)</span>
+    <span class="n">ident</span> <span class="o">=</span> <span class="p">(</span><span class="n">folder_content_id</span><span class="p">,</span> <span class="n">subfolder_subtopic_id</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">,</span> <span class="s">&quot;Folder &#39;</span><span class="si">%s</span><span class="s">&#39; does not exist.&quot;</span> <span class="o">%</span> <span class="n">fid</span><span class="p">)</span>
+
+    <span class="n">items</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">lab</span> <span class="ow">in</span> <span class="n">label_store</span><span class="o">.</span><span class="n">connected_component</span><span class="p">(</span><span class="n">ident</span><span class="p">):</span>
+        <span class="n">cid</span> <span class="o">=</span> <span class="n">lab</span><span class="o">.</span><span class="n">other</span><span class="p">(</span><span class="n">folder_content_id</span><span class="p">)</span>
+        <span class="n">subid</span> <span class="o">=</span> <span class="n">lab</span><span class="o">.</span><span class="n">subtopic_for</span><span class="p">(</span><span class="n">cid</span><span class="p">)</span>
+        <span class="n">items</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">cid</span><span class="p">,</span> <span class="n">subid</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">items</span>
+
+</div>
+<span class="k">def</span> <span class="nf">folder_id_to_name</span><span class="p">(</span><span class="n">ident</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">ident</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">,</span> <span class="s">&#39; &#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">folder_name_to_id</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="s">&#39;_&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">wrap_folder_content_id</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+        <span class="s">&#39;topic&#39;</span><span class="p">,</span>
+        <span class="n">urllib</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="s">&#39;~&#39;</span><span class="p">),</span>
+        <span class="n">urllib</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">fid</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="s">&#39;~&#39;</span><span class="p">),</span>
+    <span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">unwrap_folder_content_id</span><span class="p">(</span><span class="n">cid</span><span class="p">):</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">annotator_id</span><span class="p">,</span> <span class="n">fid</span> <span class="o">=</span> <span class="n">cid</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;|&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s">&#39;annotator_id&#39;</span><span class="p">:</span> <span class="n">urllib</span><span class="o">.</span><span class="n">unquote</span><span class="p">(</span><span class="n">annotator_id</span><span class="p">),</span>
+        <span class="s">&#39;folder_id&#39;</span><span class="p">:</span> <span class="n">urllib</span><span class="o">.</span><span class="n">unquote</span><span class="p">(</span><span class="n">fid</span><span class="p">),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">wrap_subfolder_subtopic_id</span><span class="p">(</span><span class="n">sfid</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">sfid</span>
+
+
+<span class="k">def</span> <span class="nf">unwrap_subfolder_subtopic_id</span><span class="p">(</span><span class="n">subtopic_id</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">subtopic_id</span>
+
+
+<span class="k">def</span> <span class="nf">assert_valid_folder_id</span><span class="p">(</span><span class="n">ident</span><span class="p">):</span>
+    <span class="k">if</span> <span class="s">&#39; &#39;</span> <span class="ow">in</span> <span class="n">ident</span> <span class="ow">or</span> <span class="s">&#39;/&#39;</span> <span class="ow">in</span> <span class="n">ident</span><span class="p">:</span>
+        <span class="n">bottle</span><span class="o">.</span><span class="n">abort</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span>
+            <span class="s">&quot;Folder ids cannot contain spaces or &#39;/&#39; characters.&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_annotator_id</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="c"># TODO: Get the annotator id from REMOTE_USER environment variable?</span>
+    <span class="c"># Currently, we&#39;re just accepting anything in the query parameter</span>
+    <span class="c"># `annotator_id` (and assuming `unknown` if absent). ---AG</span>
+    <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;annotator_id&#39;</span><span class="p">,</span> <span class="s">&#39;unknown&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">str_to_max_int</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">maximum</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">))</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">maximum</span>
+
+
+<span class="k">def</span> <span class="nf">fc_to_json</span><span class="p">(</span><span class="n">fc</span><span class="p">):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">feat</span> <span class="ow">in</span> <span class="n">fc</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">feat</span><span class="p">,</span> <span class="p">(</span><span class="nb">unicode</span><span class="p">,</span> <span class="n">StringCounter</span><span class="p">)):</span>
+            <span class="n">d</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">feat</span>
+    <span class="k">return</span> <span class="n">d</span>
+
+
+<span class="k">def</span> <span class="nf">make_ident</span><span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">subtopic_id</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">subtopic_id</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">content_id</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">content_id</span><span class="p">,</span> <span class="n">subtopic_id</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">label_to_json</span><span class="p">(</span><span class="n">lab</span><span class="p">):</span>
+    <span class="n">lab</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">lab</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">lab</span><span class="o">.</span><span class="n">_fields</span><span class="p">}</span>
+    <span class="n">lab</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">lab</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+    <span class="k">return</span> <span class="n">lab</span>
+
+
+<span class="k">def</span> <span class="nf">paginate</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">it</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">setqp</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">set_query_param</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">tuple_to_link</span><span class="p">((</span><span class="n">rel</span><span class="p">,</span> <span class="n">url</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="s">&#39;&lt;</span><span class="si">%s</span><span class="s">&gt;; rel=&quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">rel</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">add_link_headers</span><span class="p">(</span><span class="n">page</span><span class="p">,</span> <span class="n">per</span><span class="p">):</span>
+        <span class="n">links</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c"># Add the &quot;first&quot; and &quot;prev&quot; links.</span>
+        <span class="k">if</span> <span class="n">page</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">links</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s">&#39;first&#39;</span><span class="p">,</span> <span class="n">setqp</span><span class="p">(</span><span class="s">&#39;page&#39;</span><span class="p">,</span> <span class="s">&#39;1&#39;</span><span class="p">)))</span>
+            <span class="n">links</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s">&#39;prev&#39;</span><span class="p">,</span> <span class="n">setqp</span><span class="p">(</span><span class="s">&#39;page&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">page</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))))</span>
+        <span class="c"># We never really know when the stream ends, so there is always a</span>
+        <span class="c"># &quot;next&quot; link.</span>
+        <span class="n">links</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s">&#39;next&#39;</span><span class="p">,</span> <span class="n">setqp</span><span class="p">(</span><span class="s">&#39;page&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">page</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))))</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Link&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">tuple_to_link</span><span class="p">,</span> <span class="n">links</span><span class="p">))</span>
+
+    <span class="n">page</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;page&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>
+    <span class="n">per</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;perpage&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">))))</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="p">(</span><span class="n">page</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">per</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">per</span>
+    <span class="n">add_link_headers</span><span class="p">(</span><span class="n">page</span><span class="p">,</span> <span class="n">per</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">islice</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">set_query_param</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Returns a new URL with the given query parameter set to ``value``.</span>
+
+<span class="sd">    ``value`` may be a list.&#39;&#39;&#39;</span>
+    <span class="n">scheme</span><span class="p">,</span> <span class="n">netloc</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">qs</span><span class="p">,</span> <span class="n">frag</span> <span class="o">=</span> <span class="n">urlparse</span><span class="o">.</span><span class="n">urlsplit</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">urlparse</span><span class="o">.</span><span class="n">parse_qs</span><span class="p">(</span><span class="n">qs</span><span class="p">)</span>
+    <span class="n">params</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="n">qs</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">urlencode</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">doseq</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">urlparse</span><span class="o">.</span><span class="n">urlunsplit</span><span class="p">((</span><span class="n">scheme</span><span class="p">,</span> <span class="n">netloc</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">qs</span><span class="p">,</span> <span class="n">frag</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">dedup</span><span class="p">(</span><span class="n">it</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Dedups a sorted iterable in constant memory.&#39;&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groupby</span><span class="p">(</span><span class="n">it</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">lab</span> <span class="ow">in</span> <span class="n">group</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">lab</span>
+            <span class="k">break</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

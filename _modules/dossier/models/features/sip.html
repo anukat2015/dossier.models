@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dossier.models.features.sip &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="../../../../index.html" />
+    <link rel="up" title="Module code" href="../../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dossier.models.features.sip</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">nltk</span>
+<span class="kn">from</span> <span class="nn">nltk.corpus</span> <span class="kn">import</span> <span class="n">stopwords</span>
+
+
+<div class="viewcode-block" id="noun_phrases"><a class="viewcode-back" href="../../../../dossier.models.html#dossier.models.features.noun_phrases">[docs]</a><span class="k">def</span> <span class="nf">noun_phrases</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Generate a bag of normalized stemmed noun phrases from ``text``.</span>
+
+<span class="sd">    This is built around python&#39;s nltk library for getting Noun</span>
+<span class="sd">    Phrases (NPs). This is all documented in the NLTK Book</span>
+<span class="sd">    http://www.nltk.org/book/ch03.html and blog posts that cite the</span>
+<span class="sd">    book.</span>
+
+<span class="sd">    :rtype: list of phrase strings with spaces replaced by ``_``.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c">## from NLTK Book:</span>
+    <span class="n">sentence_re</span> <span class="o">=</span> <span class="s">r&#39;&#39;&#39;(?x)      # set flag to allow verbose regexps</span>
+<span class="s">          ([A-Z])(\.[A-Z])+\.?  # abbreviations, e.g. U.S.A.</span>
+<span class="s">        | \w+(-\w+)*            # words with optional internal hyphens</span>
+<span class="s">        | \$?\d+(\.\d+)?%?      # currency and percentages, e.g. $12.40, 82%</span>
+<span class="s">        | \.\.\.                # ellipsis</span>
+<span class="s">        | [][.,;&quot;&#39;?():-_`]      # these are separate tokens</span>
+<span class="s">    &#39;&#39;&#39;</span>
+
+    <span class="n">lemmatizer</span> <span class="o">=</span> <span class="n">nltk</span><span class="o">.</span><span class="n">WordNetLemmatizer</span><span class="p">()</span>
+    <span class="n">stemmer</span> <span class="o">=</span> <span class="n">nltk</span><span class="o">.</span><span class="n">stem</span><span class="o">.</span><span class="n">porter</span><span class="o">.</span><span class="n">PorterStemmer</span><span class="p">()</span>
+
+    <span class="c">## From Su Nam Kim paper:</span>
+    <span class="c">## http://www.comp.nus.edu.sg/~kanmy/papers/10.1007_s10579-012-9210-3.pdf</span>
+    <span class="n">grammar</span> <span class="o">=</span> <span class="s">r&#39;&#39;&#39;</span>
+<span class="s">        NBAR:</span>
+<span class="s">            {&lt;NN.*|JJ&gt;*&lt;NN.*&gt;}  # Nouns and Adjectives, terminated with Nouns</span>
+
+<span class="s">        NP:</span>
+<span class="s">            {&lt;NBAR&gt;}</span>
+<span class="s">            {&lt;NBAR&gt;&lt;IN&gt;&lt;NBAR&gt;}  # Above, connected with in/of/etc...</span>
+<span class="s">    &#39;&#39;&#39;</span>
+    <span class="n">chunker</span> <span class="o">=</span> <span class="n">nltk</span><span class="o">.</span><span class="n">RegexpParser</span><span class="p">(</span><span class="n">grammar</span><span class="p">)</span>
+
+    <span class="n">toks</span> <span class="o">=</span> <span class="n">nltk</span><span class="o">.</span><span class="n">regexp_tokenize</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">sentence_re</span><span class="p">)</span>
+    <span class="n">postoks</span> <span class="o">=</span> <span class="n">nltk</span><span class="o">.</span><span class="n">tag</span><span class="o">.</span><span class="n">pos_tag</span><span class="p">(</span><span class="n">toks</span><span class="p">)</span>
+
+    <span class="c">#print postoks</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">chunker</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">postoks</span><span class="p">)</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">stopwords</span><span class="o">.</span><span class="n">words</span><span class="p">(</span><span class="s">&#39;english&#39;</span><span class="p">)</span>
+
+    <span class="c">## These next four functions are standard uses of NLTK illustrated by</span>
+    <span class="c">## http://alexbowe.com/au-naturale/</span>
+    <span class="c">## https://gist.github.com/alexbowe/879414</span>
+    <span class="k">def</span> <span class="nf">leaves</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Finds NP (nounphrase) leaf nodes of a chunk tree.&#39;&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">subtree</span> <span class="ow">in</span> <span class="n">tree</span><span class="o">.</span><span class="n">subtrees</span><span class="p">(</span><span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">label</span><span class="p">()</span><span class="o">==</span><span class="s">&#39;NP&#39;</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">subtree</span><span class="o">.</span><span class="n">leaves</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">normalise</span><span class="p">(</span><span class="n">word</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Normalises words to lowercase and stems and lemmatizes it.&#39;&#39;&#39;</span>
+        <span class="n">word</span> <span class="o">=</span> <span class="n">word</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">word</span> <span class="o">=</span> <span class="n">stemmer</span><span class="o">.</span><span class="n">stem_word</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+        <span class="n">word</span> <span class="o">=</span> <span class="n">lemmatizer</span><span class="o">.</span><span class="n">lemmatize</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">word</span>
+
+    <span class="k">def</span> <span class="nf">acceptable_word</span><span class="p">(</span><span class="n">word</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Checks conditions for acceptable word: length, stopword.&#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="mi">2</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">word</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">40</span> <span class="ow">and</span> <span class="n">word</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stops</span>
+
+    <span class="k">def</span> <span class="nf">get_terms</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">leaf</span> <span class="ow">in</span> <span class="n">leaves</span><span class="p">(</span><span class="n">tree</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="p">[</span><span class="n">normalise</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span><span class="p">,</span><span class="n">t</span> <span class="ow">in</span> <span class="n">leaf</span> <span class="k">if</span> <span class="n">acceptable_word</span><span class="p">(</span><span class="n">w</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="s">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">term</span><span class="p">)</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">get_terms</span><span class="p">(</span><span class="n">tree</span><span class="p">)]</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">dossier 0.3.0 documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>

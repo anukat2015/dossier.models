@@ -1,0 +1,483 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>1. dossier.fc — feature collections &mdash; dossier 0.3.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="dossier 0.3.0 documentation" href="index.html" />
+    <link rel="prev" title="Dossier Stack documentation" href="index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Dossier Stack documentation"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-dossier.fc">
+<span id="dossier-fc-feature-collections"></span><h1>1. <a class="reference internal" href="#module-dossier.fc" title="dossier.fc"><code class="xref py py-mod docutils literal"><span class="pre">dossier.fc</span></code></a> &#8212; feature collections<a class="headerlink" href="#module-dossier.fc" title="Permalink to this headline">¶</a></h1>
+<p>Collections of named features.</p>
+<p>This module provides <a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a> and a
+number of supporting classes.  A feature collection is a dictionary
+mapping a feature name to a feature representation.  The
+representation is typically a <a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.StringCounter</span></code></a>, an
+implementation of <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>, which is fundamentally
+a mapping from a string value to an integer.</p>
+<p>This representation allows multiple values to be stored for multiple
+bits of information about some entity of interest.  The weights in the
+underlying counters can be used to indicate how common a particular
+value is, or how many times it appears in the source documents.</p>
+<blockquote>
+<div><div class="highlight-python"><div class="highlight"><pre><span class="n">president</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">()</span>
+<span class="n">president</span><span class="p">[</span><span class="s">&#39;NAME&#39;</span><span class="p">][</span><span class="s">&#39;Barack Obama&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">president</span><span class="p">[</span><span class="s">&#39;entity_type&#39;</span><span class="p">][</span><span class="s">&#39;PER&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">president</span><span class="p">[</span><span class="s">&#39;PER_ADDRESS&#39;</span><span class="p">][</span><span class="s">&#39;White House&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="n">president</span><span class="p">[</span><span class="s">&#39;PER_ADDRESS&#39;</span><span class="p">][</span><span class="s">&#39;1600 Pennsylvania Ave.&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Feature collections can have representations other than the basic
+string-counter representation; these representations may not preserve
+the source strings, but will still be suitable for machine-learning
+applications.</p>
+<p>Feature collections can be serialized to <span class="target" id="index-0"></span><a class="rfc reference external" href="https://tools.ietf.org/html/rfc7049.html"><strong>RFC 7049</strong></a> CBOR format,
+similar to a binary JSON representation.  They can also be stored
+sequentially in flat files using
+<a class="reference internal" href="#dossier.fc.FeatureCollectionChunk" title="dossier.fc.FeatureCollectionChunk"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollectionChunk</span></code></a> as an accessor.</p>
+<dl class="class">
+<dt id="dossier.fc.FeatureCollection">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">FeatureCollection</code><span class="sig-paren">(</span><em>data=None</em>, <em>read_only=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">_abcoll.MutableMapping</span></code></p>
+<p>A collection of features.</p>
+<p>This is a dictionary from feature name to a
+<a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a> or similar object. In typical use
+callers will not try to instantiate individual dictionary elements,
+but will fall back on the collection&#8217;s default-value behavior:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">fc</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">()</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">&#39;NAME&#39;</span><span class="p">][</span><span class="s">&#39;John Smith&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>The default default feature type is
+<a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a>.</p>
+<p><strong>Feature collection construction and serialization:</strong></p>
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>data=None</em>, <em>read_only=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a new empty feature collection.</p>
+<p>If <code class="docutils literal"><span class="pre">data</span></code> is a dictionary-like object with a structure similar
+to that of a feature collection (i.e., a dict of multisets),
+then it is used to initialize the feature collection.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="dossier.fc.FeatureCollection.loads">
+<em class="property">classmethod </em><code class="descname">loads</code><span class="sig-paren">(</span><em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.loads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.loads" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a feature collection from a CBOR byte string.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.dumps">
+<code class="descname">dumps</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.dumps"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.dumps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a CBOR byte string from a feature collection.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="dossier.fc.FeatureCollection.from_dict">
+<em class="property">classmethod </em><code class="descname">from_dict</code><span class="sig-paren">(</span><em>data</em>, <em>read_only=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.from_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Recreate a feature collection from a dictionary.</p>
+<p>The dictionary is of the format dumped by <a class="reference internal" href="#dossier.fc.FeatureCollection.to_dict" title="dossier.fc.FeatureCollection.to_dict"><code class="xref py py-meth docutils literal"><span class="pre">to_dict()</span></code></a>.
+Additional information, such as whether the feature collection
+should be read-only, is not included in this dictionary, and
+is instead passed as parameters to this function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.to_dict">
+<code class="descname">to_dict</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.to_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.to_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dump a feature collection&#8217;s features to a dictionary.</p>
+<p>This does not include additional data, such as whether
+or not the collection is read-only.  The returned dictionary
+is suitable for serialization into JSON, CBOR, or similar
+data formats.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="dossier.fc.FeatureCollection.register_serializer">
+<em class="property">static </em><code class="descname">register_serializer</code><span class="sig-paren">(</span><em>feature_type</em>, <em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.register_serializer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.register_serializer" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is a <strong>class</strong> method that lets you define your own
+feature type serializers. <code class="docutils literal"><span class="pre">tag</span></code> should be the name of
+the feature type that you want to define serialization
+for. Currently, the valid values are <code class="docutils literal"><span class="pre">StringCounter</span></code>,
+<code class="docutils literal"><span class="pre">Unicode</span></code>, <code class="docutils literal"><span class="pre">SparseVector</span></code> or <code class="docutils literal"><span class="pre">DenseVector</span></code>.</p>
+<p>Note that this function is not thread safe.</p>
+<p><code class="docutils literal"><span class="pre">obj</span></code> must be an object with three attributes defined.</p>
+<p><code class="docutils literal"><span class="pre">obj.loads</span></code> is a function that takes a CBOR created
+Python data structure and returns a new feature counter.</p>
+<p><code class="docutils literal"><span class="pre">obj.dumps</span></code> is a function that takes a feature counter
+and returns a Python data structure that can be serialized
+by CBOR.</p>
+<p><code class="docutils literal"><span class="pre">obj.constructor</span></code> is a function with no parameters that
+returns the Python <code class="docutils literal"><span class="pre">type</span></code> that can be used to construct
+new features. It should be possible to call
+<code class="docutils literal"><span class="pre">obj.constructor()</span></code> to get a new and empty feature
+counter.</p>
+</dd></dl>
+
+<p><strong>Feature collection values and attributes:</strong></p>
+<dl class="attribute">
+<dt id="dossier.fc.FeatureCollection.read_only">
+<code class="descname">read_only</code><a class="headerlink" href="#dossier.fc.FeatureCollection.read_only" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flag if this feature collection is read-only.</p>
+<p>When a feature collection is read-only, no part of it
+can be modified.  Individual feature counters cannot
+be added, deleted, or changed.  This attribute is
+preserved across serialization and deserialization.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.FeatureCollection.generation">
+<code class="descname">generation</code><a class="headerlink" href="#dossier.fc.FeatureCollection.generation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the generation number for this feature collection.</p>
+<p>This is the highest generation number across all counters
+in the collection, if the counters support generation
+numbers.  This collection has not changed if the generation
+number has not changed.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.FeatureCollection.DISPLAY_PREFIX">
+<code class="descname">DISPLAY_PREFIX</code><em class="property"> = '#'</em><a class="headerlink" href="#dossier.fc.FeatureCollection.DISPLAY_PREFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prefix on names of features that are human-readable.</p>
+<p>Processing may convert a feature <code class="docutils literal"><span class="pre">name</span></code> to a similar feature
+<code class="docutils literal"><span class="pre">#name</span></code> that is human-readable, while converting the original
+feature to a form that is machine-readable only; for instance,
+replacing strings with integers for faster comparison.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.FeatureCollection.EPHEMERAL_PREFIX">
+<code class="descname">EPHEMERAL_PREFIX</code><em class="property"> = '_'</em><a class="headerlink" href="#dossier.fc.FeatureCollection.EPHEMERAL_PREFIX" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prefix on names of features that are not persisted.</p>
+<p><a class="reference internal" href="#dossier.fc.FeatureCollection.to_dict" title="dossier.fc.FeatureCollection.to_dict"><code class="xref py py-meth docutils literal"><span class="pre">to_dict()</span></code></a> and <a class="reference internal" href="#dossier.fc.FeatureCollection.dumps" title="dossier.fc.FeatureCollection.dumps"><code class="xref py py-meth docutils literal"><span class="pre">dumps()</span></code></a> will not write out features
+that begin with this character.</p>
+</dd></dl>
+
+<p><strong>Feature collection computation:</strong></p>
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.__add__">
+<code class="descname">__add__</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.__add__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.__add__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add features from two FeatureCollections.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">fc1</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">&#39;foo&#39;</span><span class="p">:</span> <span class="n">Counter</span><span class="p">(</span><span class="s">&#39;abbb&#39;</span><span class="p">)})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fc2</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">&#39;foo&#39;</span><span class="p">:</span> <span class="n">Counter</span><span class="p">(</span><span class="s">&#39;bcc&#39;</span><span class="p">)})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fc1</span> <span class="o">+</span> <span class="n">fc2</span>
+<span class="go">FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 4, &#39;c&#39;: 2, &#39;a&#39;: 1})})</span>
+</pre></div>
+</div>
+<p>Note that if a feature in either of the collections is not an
+instance of <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>, then it is ignored.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.__sub__">
+<code class="descname">__sub__</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.__sub__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.__sub__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Subtract features from two FeatureCollections.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">fc1</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">&#39;foo&#39;</span><span class="p">:</span> <span class="n">Counter</span><span class="p">(</span><span class="s">&#39;abbb&#39;</span><span class="p">)})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fc2</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">&#39;foo&#39;</span><span class="p">:</span> <span class="n">Counter</span><span class="p">(</span><span class="s">&#39;bcc&#39;</span><span class="p">)})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fc1</span> <span class="o">-</span> <span class="n">fc2</span>
+<span class="go">FeatureCollection({&#39;foo&#39;: Counter({&#39;b&#39;: 2, &#39;a&#39;: 1})})</span>
+</pre></div>
+</div>
+<p>Note that if a feature in either of the collections is not an
+instance of <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>, then it is ignored.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.__mul__">
+<code class="descname">__mul__</code><span class="sig-paren">(</span><em>coef</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.__mul__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.__mul__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.__imul__">
+<code class="descname">__imul__</code><span class="sig-paren">(</span><em>coef</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.__imul__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.__imul__" title="Permalink to this definition">¶</a></dt>
+<dd><p>In-place multiplication by a scalar.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.total">
+<code class="descname">total</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.total"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.total" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns sum of all counts in all features that are multisets.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.FeatureCollection.merge_with">
+<code class="descname">merge_with</code><span class="sig-paren">(</span><em>other</em>, <em>multiset_op</em>, <em>other_op=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/feature_collection.html#FeatureCollection.merge_with"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.FeatureCollection.merge_with" title="Permalink to this definition">¶</a></dt>
+<dd><p>Merge this feature collection with another.</p>
+<p>Merges two feature collections using the given <code class="docutils literal"><span class="pre">multiset_op</span></code>
+on each corresponding multiset and returns a new
+<a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">FeatureCollection</span></code></a>. The contents of the two original
+feature collections are not modified.</p>
+<p>For each feature name in both feature sets, if either feature
+collection being merged has a <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>
+instance as its value, then the two values are merged by
+calling <cite>multiset_op</cite> with both values as parameters.  If
+either feature collection has something other than a
+<a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>, and <cite>other_op</cite> is not
+<code class="xref py py-const docutils literal"><span class="pre">None</span></code>, then <cite>other_op</cite> is called with both values to
+merge them.  If <cite>other_op</cite> is <code class="xref py py-const docutils literal"><span class="pre">None</span></code> and a feature
+is not present in either feature collection with a counter
+value, then the feature will not be present in the result.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>other</strong> (<a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">FeatureCollection</span></code></a>) &#8211; The feature collection to merge into <code class="docutils literal"><span class="pre">self</span></code>.</li>
+<li><strong>multiset_op</strong> (<em>fun(Counter, Counter) -&gt; Counter</em>) &#8211; Function to merge two counters</li>
+<li><strong>other_op</strong> (<em>fun(object, object) -&gt; object</em>) &#8211; Function to merge two non-counters</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">FeatureCollection</span></code></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.fc.StringCounter">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">StringCounter</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/string_counter.html#StringCounter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.StringCounter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a></p>
+<p>Simple counter based on exact string matching.</p>
+<p>This is a subclass of <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a> that includes a
+generation counter so that it can be used in a cache.</p>
+<p><a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a> is the default feature type in a feature
+collection, so you typically don&#8217;t have to instantiate a
+<a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a> explicitly:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">fc</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">()</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">&#39;NAME&#39;</span><span class="p">][</span><span class="s">&#39;John Smith&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>But instantiating directly works too:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">sc</span> <span class="o">=</span> <span class="n">StringCounter</span><span class="p">()</span>
+<span class="n">sc</span><span class="p">[</span><span class="s">&#39;John Smith&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+<span class="n">fc</span> <span class="o">=</span> <span class="n">FeatureCollection</span><span class="p">({</span><span class="s">&#39;NAME&#39;</span><span class="p">:</span> <span class="n">sc</span><span class="p">})</span>
+<span class="n">fc</span><span class="p">[</span><span class="s">&#39;NAME&#39;</span><span class="p">][</span><span class="s">&#39;John Smith&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="k">assert</span> <span class="n">fc</span><span class="p">[</span><span class="s">&#39;NAME&#39;</span><span class="p">][</span><span class="s">&#39;John Smith&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>Note that instances of this class support all the methods defined
+for a <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>, but only the ones unique to
+<a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a> are listed here.</p>
+<dl class="method">
+<dt id="dossier.fc.StringCounter.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/string_counter.html#StringCounter.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.StringCounter.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize a <a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a> with existing counts:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span> <span class="o">=</span> <span class="n">StringCounter</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span><span class="p">[</span><span class="s">&#39;b&#39;</span><span class="p">]</span>
+<span class="go">2</span>
+</pre></div>
+</div>
+<p>See the documentation for <a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a> for more
+examples.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="dossier.fc.StringCounter.truncate_most_common">
+<code class="descname">truncate_most_common</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dossier/fc/string_counter.html#StringCounter.truncate_most_common"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.StringCounter.truncate_most_common" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sorts the counter and keeps only the most common items up to
+<code class="docutils literal"><span class="pre">truncation_length</span></code> in place.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.StringCounter.read_only">
+<code class="descname">read_only</code><a class="headerlink" href="#dossier.fc.StringCounter.read_only" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flag indicating whether this collection is read-only.</p>
+<p>This flag always begins as <code class="xref py py-const docutils literal"><span class="pre">False</span></code>, it cannot be set
+via the constructor for compatibility with
+<a class="reference external" href="http://docs.python.org/library/collections.html#collections.Counter" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">collections.Counter</span></code></a>.  If this flag is set, then any
+operations that mutate it will raise
+<code class="xref py py-exc docutils literal"><span class="pre">ReadOnlyException</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.StringCounter.generation">
+<code class="descname">generation</code><a class="headerlink" href="#dossier.fc.StringCounter.generation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generation number for this counter instance.</p>
+<p>This number is incremented by every operation that
+mutates the counter object.  If two collections are the
+same object and have the same generation number, then
+they are identical.</p>
+<p>Having this property allows a pair of <cite>id(sc)</cite> and the
+generation to be an immutable hashable key for things like
+memoization operations, accounting for the possibility of the
+counter changing over time.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span> <span class="o">=</span> <span class="n">StringCounter</span><span class="p">({</span><span class="s">&#39;a&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cache</span> <span class="o">=</span> <span class="p">{(</span><span class="nb">id</span><span class="p">(</span><span class="n">sc</span><span class="p">),</span> <span class="n">sc</span><span class="o">.</span><span class="n">generation</span><span class="p">):</span> <span class="mi">1</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">sc</span><span class="p">),</span> <span class="n">sc</span><span class="o">.</span><span class="n">generation</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cache</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span><span class="p">[</span><span class="s">&#39;a&#39;</span><span class="p">]</span>
+<span class="go">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">sc</span><span class="p">),</span> <span class="n">sc</span><span class="o">.</span><span class="n">generation</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cache</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span><span class="p">[</span><span class="s">&#39;a&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sc</span><span class="p">[</span><span class="s">&#39;a&#39;</span><span class="p">]</span>
+<span class="go">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">sc</span><span class="p">),</span> <span class="n">sc</span><span class="o">.</span><span class="n">generation</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cache</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.fc.SparseVector">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">SparseVector</code><a class="reference internal" href="_modules/dossier/fc/vector.html#SparseVector"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.SparseVector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="http://docs.python.org/library/functions.html#object" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">object</span></code></a></p>
+<p>An abstract class for sparse vectors.</p>
+<p>Currently, there is no default implementation of a sparse vector.</p>
+<p>Other implementations of sparse vectors <em>must</em> inherit
+from this class. Otherwise they cannot be used inside a
+<a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.fc.DenseVector">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">DenseVector</code><a class="reference internal" href="_modules/dossier/fc/vector.html#DenseVector"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.DenseVector" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="http://docs.python.org/library/functions.html#object" title="(in Python v2.7)"><code class="xref py py-class docutils literal"><span class="pre">object</span></code></a></p>
+<p>An abstract class for dense vectors.</p>
+<p>Currently, there is no default implementation of a dense vector.</p>
+<p>Other implementations of dense vectors <em>must</em> inherit
+from this class. Otherwise they cannot be used inside a
+<a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">dossier.fc.FeatureCollection</span></code></a>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="dossier.fc.FeatureCollectionChunk">
+<code class="descclassname">dossier.fc.</code><code class="descname">FeatureCollectionChunk</code><a class="headerlink" href="#dossier.fc.FeatureCollectionChunk" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal"><span class="pre">&lt;Mock</span> <span class="pre">id='139962608670928'&gt;</span></code></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.fc.ReadOnlyException">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">ReadOnlyException</code><a class="reference internal" href="_modules/dossier/fc/exceptions.html#ReadOnlyException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.ReadOnlyException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">dossier.fc.exceptions.BaseException</span></code></p>
+<p>Code attempted to modify a read-only feature collection.</p>
+<p>This occurs when adding, deleting, or making other in-place
+modifications to a <a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">FeatureCollection</span></code></a> that has
+its <a class="reference internal" href="#dossier.fc.FeatureCollection.read_only" title="dossier.fc.FeatureCollection.read_only"><code class="xref py py-attr docutils literal"><span class="pre">read_only</span></code></a> flag set.  It
+also occurs when attempting to make changes to a
+<a class="reference internal" href="#dossier.fc.StringCounter" title="dossier.fc.StringCounter"><code class="xref py py-class docutils literal"><span class="pre">StringCounter</span></code></a> contained in such a collection.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="dossier.fc.SerializationError">
+<em class="property">class </em><code class="descclassname">dossier.fc.</code><code class="descname">SerializationError</code><a class="reference internal" href="_modules/dossier/fc/exceptions.html#SerializationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dossier.fc.SerializationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">dossier.fc.exceptions.BaseException</span></code></p>
+<p>A problem occurred serializing or deserializing.</p>
+<p>This can occur if a <a class="reference internal" href="#dossier.fc.FeatureCollection" title="dossier.fc.FeatureCollection"><code class="xref py py-class docutils literal"><span class="pre">FeatureCollection</span></code></a> has an
+unrecognized feature type, or if a CBOR input does not have the
+correct format.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Dossier Stack documentation</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/dossier.fc.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Dossier Stack documentation"
+             >previous</a> |</li>
+        <li><a href="index.html">dossier 0.3.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Diffeo, Inc..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3b2.
+    </div>
+  </body>
+</html>
