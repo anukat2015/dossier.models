@@ -1,0 +1,13 @@
+logging:
+  root:
+    level: DEBUG
+
+dossier.store:
+  feature_indexes: ['bowNP_sip', 'bowNP', 'phone', 'region']
+
+kvlayer:
+  app_name: dossierstack
+  namespace: demo
+  storage_type: filestorage
+  filename: /kvlayer/demo.db
+  storage_addresses: []
