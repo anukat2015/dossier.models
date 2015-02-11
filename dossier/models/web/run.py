@@ -135,7 +135,7 @@ def add_routes(app):
             store.put([(cid, fc)])
             return routes.fc_to_json(fc)
         else:
-            return routes.v1_fc_put(request, response, store, cid)
+            return routes.v1_fc_put(request, response, lambda x: x, store, cid)
 
 
 def create_fc_from_html(url, html, tfidf=None):
