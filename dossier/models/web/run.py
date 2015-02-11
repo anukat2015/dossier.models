@@ -153,6 +153,21 @@ def create_fc_from_html(url, html, tfidf=None):
     return fc
 
 
+def same_subfolder(store, label_store):
+    '''Filter out results in the same subfolder.'''
+    folders = web.Folders(store, label_store)
+    def init_filter(query_content_id):
+        subfolders = folders.parent_subfolders(query_content_id)
+        cids = set()
+        for folder_id, subfolder_id in subfolders:
+            for cid, _ in folders.items(folder_id, subfolder_id):
+                cids.add(cid)
+        def p((content_id, fc)):
+            return content_id not in cids
+        return p
+    return init_filter
+
+
 def get_application():
     engines = {
         'dissimilar': dissimilar,
@@ -160,8 +175,9 @@ def get_application():
         'random': web.engine_random,
         'index_scan': web.engine_index_scan,
     }
-    args, application = web.get_application(routes=[add_routes],
-                                            search_engines=engines)
+    args, application = web.get_application(
+        routes=[add_routes], search_engines=engines,
+        filter_preds={'already_labeled': same_subfolder})
 
     tfidf_model = False
     if TFIDF:
