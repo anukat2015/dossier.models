@@ -35,7 +35,7 @@ setup(
         'beautifulsoup4',
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
-        'dossier.web >= 0.5.0',
+        'dossier.web >= 0.7.0',
         'happybase',
         'joblib',
         'nltk',
