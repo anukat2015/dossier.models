@@ -19,8 +19,8 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.linear_model import LogisticRegression
 
-from dossier.label import CorefValue, expand_labels
-from dossier.web import engine_index_scan, streaming_sample
+from dossier.label import CorefValue, Label, expand_labels
+from dossier.web import Folders, engine_index_scan, streaming_sample
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,8 @@ def create_search_engine(store, label_store, similar=True):
     # This is distinct from `canopy_limit` and `label_limit`, where
     # they are used to keep resource use in check.
     def _(content_id, filter_pred, limit,
-          canopy_limit=100, label_limit=100):
+          canopy_limit=100, label_limit=100,
+          subtopic_id=None):
         '''Creates an active learning search engine.
 
         This is a helper function meant to satisfy the interface of
@@ -73,6 +74,7 @@ def create_search_engine(store, label_store, similar=True):
 
         learner = PairwiseFeatureLearner(
             store, label_store, content_id,
+            subtopic_id=subtopic_id,
             canopy_limit=canopy_limit, label_limit=label_limit)
         try:
             candidate_probs = sorted(
@@ -111,7 +113,7 @@ class PairwiseFeatureLearner(object):
     .. automethod:: dossier.models.PairwiseFeatureLearner.__init__
     .. automethod:: dossier.models.PairwiseFeatureLearner.probabilities
     '''
-    def __init__(self, store, label_store, content_id,
+    def __init__(self, store, label_store, content_id, subtopic_id=None,
                  canopy_limit=None, label_limit=None):
         '''Build a new model.
 
@@ -132,7 +134,9 @@ class PairwiseFeatureLearner(object):
         '''
         self.store = store
         self.label_store = label_store
+        self.folders = Folders(store, label_store)
         self.query_content_id = content_id
+        self.query_subtopic_id = subtopic_id
         self.query_fc = None
         self.canopy_limit = canopy_limit
         self.label_limit = label_limit
@@ -321,6 +325,94 @@ class PairwiseFeatureLearner(object):
 
     def labels_from_query(self, limit=None):
         '''ContentId -> [Label]'''
+        if self.query_subtopic_id is None:
+            return self.topic_labels(limit=limit)
+        else:
+            return self.subtopic_labels(limit=limit)
+
+    def subtopic_labels(self, limit=None):
+        # The basic idea here is to aggressively gather truth data while
+        # avoiding cross contamination with other subfolders. Since our query
+        # is a (content_id, subtopic_id), we can use subtopic connected
+        # components to achieve this.
+        assert self.query_subtopic_id is not None
+
+        # Short aliases.
+        cid, subid = self.query_content_id, self.query_subtopic_id
+
+        # For positive labels, the only thing we can do is traverse the
+        # subtopic connected component.
+        # Don't impose a hard limit on positive labels. (There are probably
+        # very few of them.)
+        logger.info('Getting subtopic connected component for: %r',
+                    (cid, subid))
+        pos_labels = list(self.label_store.connected_component((cid, subid)))
+        pos_labels += expand_labels(pos_labels)
+        logger.info('Inferring negative labels for: %r', (cid, subid))
+        neg_labels = self.negative_subtopic_labels()
+
+        pos_sample = streaming_sample(
+            pos_labels, limit, limit=hard_limit(limit))
+        neg_sample = streaming_sample(
+            neg_labels, limit, limit=hard_limit(limit))
+        # print('-' * 79)
+        # print('POSITIVES\n', '\n'.join(map(repr, pos_sample)), '\n')
+        # print('-' * 79)
+        # print('NEGATIVES\n', '\n'.join(map(repr, neg_sample)))
+        # print('-' * 79)
+        return pos_sample + neg_sample
+
+    def negative_subtopic_labels(self):
+        cid, subid = self.query_content_id, self.query_subtopic_id
+        subfolders = self.folders.parent_subfolders((cid, subid))
+
+        # Find all items in subfolders other than the subfolder that contains
+        # (cid, subid) and add negative labels. Stay inside the folder (topic)
+        # for now though.
+        #
+        # It's possible that `(cid, subid)` are in more than one subfolder,
+        # but in SortingDesk, `subid` is usually some kind of offset or hash,
+        # so it's probably very unlikely. In any case, if it is in more than
+        # one subfolder, then it's a user error and we just have to hope that
+        # the model figures it out.
+        in_fids = set()
+        for fid, subfolder_id in subfolders:
+            in_fids.add(fid)
+            for cousin_subid in self.folders.subfolders(fid):
+                if cousin_subid == subfolder_id:
+                    # You can't be a cousin to yourself!
+                    continue
+                for cid2, subid2 in self.folders.items(fid, cousin_subid):
+                    # TODO: Fix annotator id here. (We need to push annotator
+                    # information down into the search engine; the rest is
+                    # trivial.) ---AG
+                    yield Label(cid, cid2,
+                                Folders.DEFAULT_ANNOTATOR_ID,
+                                CorefValue.Negative,
+                                subid, subid2)
+
+        # If we exhaust the above, then let's start adding negative labels with
+        # other topics.
+        for fid in self.folders.folders():
+            if fid in in_fids:
+                # The item was found in one of these folders above, so ignore
+                # it here.
+                continue
+            # We're home free. Find every item in this folder and make a
+            # negative label for each.
+            for subid in self.folders.subfolders(subid):
+                for cid2, subid2 in self.folders.items(fid, subid):
+                    yield Label(cid, cid2,
+                                Folders.DEFAULT_ANNOTATOR_ID,
+                                CorefValue.Negative,
+                                subid, subid2)
+
+    def topic_labels(self, limit=None):
+        # This method is probably bunk for SortingDesk. SortingDesk launches
+        # queries based on subtopic, but this is finding labels at a topic
+        # level. This ends up contaminating the training data by conflating
+        # one subfolder from another (while the UI strongly suggests that
+        # subfolders are distinct).
         logger.info('Getting connected component')
         pos_component = self.label_store.connected_component(
             self.query_content_id)
