@@ -43,6 +43,14 @@ import yakonfig
 import dossier.models.features.sip as sip
 
 
+REGEX_PHONES = [
+    r'\d-?\d{3}-?\d{3}-?\d{4}',
+    r'\d{3}-?\d{3}-?\d{4}',
+    r'\d{3}-?\d{4}',
+]
+REGEX_PHONE = re.compile('|'.join(REGEX_PHONES))
+
+
 def html_to_fc(html, url=None, timestamp=None, other_features=None):
     if isinstance(html, str):
         html = unicode(html, 'utf-8')
@@ -59,6 +67,7 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     fc[u'meta_clean_visible'] = clean_vis
     fc[u'meta_timestamp'] = unicode(timestamp)
     fc[u'meta_url'] = unicode(url, 'utf-8')
+    fc[u'phone'] = StringCounter(extract_phones(clean_vis))
     for feat_name, feat_val in other_features.iteritems():
         fc[feat_name] = feat_val
 
@@ -66,6 +75,11 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     nps = sip.noun_phrases(body)
     fc[u'bowNP'] = StringCounter(nps)
     return fc
+
+
+def extract_phones(text):
+    '''Returns list of phone numbers without punctuation.'''
+    return [m.group(0).replace('-', '') for m in REGEX_PHONE.finditer(text)]
 
 
 def add_sip_to_fc(fc, tfidf, limit=4):
