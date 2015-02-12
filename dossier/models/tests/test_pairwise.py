@@ -12,6 +12,7 @@ import pytest
 
 from dossier.fc import FeatureCollection
 from dossier.label import Label, CorefValue
+from dossier.web import Folders
 
 from dossier.models import PairwiseFeatureLearner
 import dossier.models.pairwise as mod_pairwise
@@ -35,6 +36,36 @@ def pos_label(id1, id2):
 
 def neg_label(id1, id2):
     return Label(id1, id2, '', CorefValue.Negative)
+
+
+def test_subtopic_labels(store, label_store):
+    folders = Folders(store, label_store)
+    folders.add_folder('top')
+    folders.add_item('top', 'foo', 'a', 'ax')
+    folders.add_item('top', 'foo', 'b', 'bx')
+    folders.add_item('top', 'bar', 'c', 'cx')
+    folders.add_item('top', 'bar', 'd', 'dx')
+    folders.add_folder('other')
+    folders.add_item('other', 'baz', 'e', 'ex')
+
+    pairwise = PairwiseFeatureLearner(store, label_store, 'a', 'ax')
+
+    def lab(cid1, sid1, cid2, sid2, neg=False):
+        coref_val = CorefValue.Negative if neg else CorefValue.Positive
+        return Label(cid1, cid2, 'unknown', coref_val, sid1, sid2)
+    nlab = lambda a, b, c, d: lab(a, b, c, d, neg=True)
+    def has_label(haystack, needle):
+        return any(lab.same_subject_as(needle) and lab.value == needle.value
+                   for lab in haystack)
+
+    labels = pairwise.subtopic_labels()
+    print('\n'.join(map(repr, labels)))
+
+    assert has_label(labels, nlab('a', 'ax', 'e', 'ex'))
+    assert has_label(labels, nlab('a', 'ax', 'c', 'cx'))
+    assert has_label(labels, nlab('a', 'ax', 'd', 'dx'))
+    assert has_label(labels, lab('a', 'ax', 'b', 'bx'))
+    assert len(labels) == 6  # includes two for the folders
 
 
 def test_canopy(pairwise):

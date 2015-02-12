@@ -344,10 +344,9 @@ class PairwiseFeatureLearner(object):
         # subtopic connected component.
         # Don't impose a hard limit on positive labels. (There are probably
         # very few of them.)
-        logger.info('Getting subtopic connected component for: %r',
-                    (cid, subid))
-        pos_labels = list(self.label_store.connected_component((cid, subid)))
-        pos_labels += expand_labels(pos_labels)
+        logger.info('Getting subtopic connected component '
+                    '(with label expansion) for: %r', (cid, subid))
+        pos_labels = self.label_store.expand((cid, subid))
         logger.info('Inferring negative labels for: %r', (cid, subid))
         neg_labels = self.negative_subtopic_labels()
 
@@ -355,11 +354,11 @@ class PairwiseFeatureLearner(object):
             pos_labels, limit, limit=hard_limit(limit))
         neg_sample = streaming_sample(
             neg_labels, limit, limit=hard_limit(limit))
-        # print('-' * 79)
-        # print('POSITIVES\n', '\n'.join(map(repr, pos_sample)), '\n')
-        # print('-' * 79)
-        # print('NEGATIVES\n', '\n'.join(map(repr, neg_sample)))
-        # print('-' * 79)
+        print('-' * 79)
+        print('POSITIVES\n', '\n'.join(map(repr, pos_sample)), '\n')
+        print('-' * 79)
+        print('NEGATIVES\n', '\n'.join(map(repr, neg_sample)))
+        print('-' * 79)
         return pos_sample + neg_sample
 
     def negative_subtopic_labels(self):
@@ -393,15 +392,15 @@ class PairwiseFeatureLearner(object):
 
         # If we exhaust the above, then let's start adding negative labels with
         # other topics.
-        for fid in self.folders.folders():
-            if fid in in_fids:
+        for other_fid in self.folders.folders():
+            if other_fid in in_fids:
                 # The item was found in one of these folders above, so ignore
                 # it here.
                 continue
             # We're home free. Find every item in this folder and make a
             # negative label for each.
-            for subid in self.folders.subfolders(subid):
-                for cid2, subid2 in self.folders.items(fid, subid):
+            for other_subid in self.folders.subfolders(other_fid):
+                for cid2, subid2 in self.folders.items(other_fid, other_subid):
                     yield Label(cid, cid2,
                                 Folders.DEFAULT_ANNOTATOR_ID,
                                 CorefValue.Negative,
