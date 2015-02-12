@@ -39,6 +39,14 @@ def neg_label(id1, id2):
 
 
 def test_subtopic_labels(store, label_store):
+    def lab(cid1, sid1, cid2, sid2, neg=False):
+        coref_val = CorefValue.Negative if neg else CorefValue.Positive
+        return Label(cid1, cid2, 'unknown', coref_val, sid1, sid2)
+    nlab = lambda a, b, c, d: lab(a, b, c, d, neg=True)
+    def has_label(haystack, needle):
+        return any(lab.same_subject_as(needle) and lab.value == needle.value
+                   for lab in haystack)
+
     folders = Folders(store, label_store)
     folders.add_folder('top')
     folders.add_item('top', 'foo', 'a', 'ax')
@@ -48,15 +56,11 @@ def test_subtopic_labels(store, label_store):
     folders.add_folder('other')
     folders.add_item('other', 'baz', 'e', 'ex')
 
-    pairwise = PairwiseFeatureLearner(store, label_store, 'a', 'ax')
+    # Simulates a negative label from a search result.
+    label_store.put(nlab('a', 'ax', 'r', None))
+    label_store.put(nlab('b', 'bx', 'r', None))
 
-    def lab(cid1, sid1, cid2, sid2, neg=False):
-        coref_val = CorefValue.Negative if neg else CorefValue.Positive
-        return Label(cid1, cid2, 'unknown', coref_val, sid1, sid2)
-    nlab = lambda a, b, c, d: lab(a, b, c, d, neg=True)
-    def has_label(haystack, needle):
-        return any(lab.same_subject_as(needle) and lab.value == needle.value
-                   for lab in haystack)
+    pairwise = PairwiseFeatureLearner(store, label_store, 'a', 'ax')
 
     labels = pairwise.subtopic_labels()
     print('\n'.join(map(repr, labels)))
@@ -65,7 +69,9 @@ def test_subtopic_labels(store, label_store):
     assert has_label(labels, nlab('a', 'ax', 'c', 'cx'))
     assert has_label(labels, nlab('a', 'ax', 'd', 'dx'))
     assert has_label(labels, lab('a', 'ax', 'b', 'bx'))
-    assert len(labels) == 6  # includes two for the folders
+    assert has_label(labels, nlab('a', 'ax', 'r', None))
+    assert has_label(labels, nlab('b', 'bx', 'r', None))
+    assert len(labels) == 8  # 2 for folders, 2 for results, 4 inferred
 
 
 def test_canopy(pairwise):

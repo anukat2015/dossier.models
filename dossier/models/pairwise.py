@@ -363,7 +363,16 @@ class PairwiseFeatureLearner(object):
 
     def negative_subtopic_labels(self):
         cid, subid = self.query_content_id, self.query_subtopic_id
-        subfolders = self.folders.parent_subfolders((cid, subid))
+        subfolders = list(self.folders.parent_subfolders((cid, subid)))
+
+        # Find any directly connected negative labels to any item in the
+        # containing subfolder.
+        for fid, subfolder_id in subfolders:
+            for cid2, subid2 in self.folders.items(fid, subfolder_id):
+                for lab in self.label_store.directly_connected(cid2):
+                    if lab.value == CorefValue.Negative \
+                            and lab.subtopic_for(cid2) == subid2:
+                        yield lab
 
         # Find all items in subfolders other than the subfolder that contains
         # (cid, subid) and add negative labels. Stay inside the folder (topic)
