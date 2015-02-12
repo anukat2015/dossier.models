@@ -160,8 +160,13 @@ def same_subfolder(store, label_store):
         subfolders = folders.parent_subfolders(query_content_id)
         cids = set()
         for folder_id, subfolder_id in subfolders:
-            for cid, _ in folders.items(folder_id, subfolder_id):
+            for cid, subid in folders.items(folder_id, subfolder_id):
                 cids.add(cid)
+
+                # Also add directly connected labels too.
+                for lab in label_store.directly_connected((cid, subid)):
+                    cids.add(lab.other(cid))
+
         def p((content_id, fc)):
             return content_id not in cids
         return p
