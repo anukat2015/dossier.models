@@ -40,18 +40,15 @@ from streamcorpus_pipeline._clean_visible import cleanse, make_clean_visible
 from streamcorpus_pipeline._clean_html import make_clean_html
 import yakonfig
 
-import dossier.models.features.sip as sip
-
-
-REGEX_PHONES = [
-    r'\d-?\d{3}-?\d{3}-?\d{4}',
-    r'\d{3}-?\d{3}-?\d{4}',
-    r'\d{3}-?\d{4}',
-]
-REGEX_PHONE = re.compile('|'.join(REGEX_PHONES))
+import dossier.models.features as features
 
 
 def html_to_fc(html, url=None, timestamp=None, other_features=None):
+    def add_feature(name, xs):
+        if name not in fc:
+            fc[name] = StringCounter()
+        fc[name] += StringCounter(xs)
+
     if isinstance(html, str):
         html = unicode(html, 'utf-8')
     timestamp = timestamp or int(time.time() * 1000)
@@ -67,31 +64,21 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     fc[u'meta_clean_visible'] = clean_vis
     fc[u'meta_timestamp'] = unicode(timestamp)
     fc[u'meta_url'] = unicode(url, 'utf-8')
-    fc[u'phone'] = StringCounter(extract_phones(clean_vis))
     for feat_name, feat_val in other_features.iteritems():
         fc[feat_name] = feat_val
 
-    body = cleanse(fc[u'meta_clean_visible'])
-    nps = sip.noun_phrases(body)
-    fc[u'bowNP'] = StringCounter(nps)
+    add_feature(u'phone', features.phones(clean_vis))
+    add_feature(u'email', features.emails(clean_vis))
+    add_feature(u'image_url', features.image_urls(clean_html))
+    add_feature(u'bowNP', features.noun_phrases(cleanse(clean_vis)))
     return fc
 
 
-def extract_phones(text):
-    '''Returns list of phone numbers without punctuation.'''
-    return [m.group(0).replace('-', '') for m in REGEX_PHONE.finditer(text)]
-
-
-def add_sip_to_fc(fc, tfidf, limit=4):
+def add_sip_to_fc(fc, tfidf, limit=40):
     if 'bowNP' not in fc:
         return
-    nouns = fc['bowNP'].keys()
-    bow = tfidf[tfidf.id2word.doc2bow(nouns)]
-    # convert to `word: count` from `index: count`.
-    # BUT only take the most significant.
-    bow = {tfidf.id2word[word]: count
-           for word, count in Counter(dict(bow)).most_common(limit)}
-    fc[u'bowNP_sip'] = StringCounter(bow)
+    sips = features.sip_noun_phrases(tfidf, fc['bowNP'].keys(), limit=limit)
+    fc[u'bowNP_sip'] = StringCounter(sips)
 
 
 def row_to_content_obj(key_row):
@@ -160,7 +147,7 @@ def unpack_noun_phrases(row):
     body = cbor.loads(zlib.decompress(row['f:response.body']))
     body = make_clean_visible(body.encode('utf-8')).decode('utf-8')
     body = cleanse(body)
-    return sip.noun_phrases(body)
+    return features.noun_phrases(body)
 
 
 def generate_fcs(tfidf, conn, pool, add, limit=5, batch_size=100):
@@ -232,7 +219,9 @@ class App(yakonfig.cmd.ArgParseCmd):
             print('"gensim" is required for computing TF-IDF.',
                   file=sys.stderr)
             sys.exit(1)
+        print('Loading TF-IDF model...')
         tfidf = models.TfidfModel.load(args.tfidf_model_path)
+        print('Connecting...')
         conn = happybase.Connection(host=args.host, port=args.port,
                                     table_prefix=args.table_prefix)
         pool = multiprocessing.Pool(processes=args.processes)
@@ -247,6 +236,7 @@ class App(yakonfig.cmd.ArgParseCmd):
             def add(cids_and_fcs):
                 for _, fc in cids_and_fcs:
                     chunk.add(fc)
+        print('Generating FCs...')
         generate_fcs(tfidf, conn, pool, add,
                      limit=limit, batch_size=args.batch_size)
         if chunk is not None:

@@ -6,7 +6,13 @@ feature extraction.
 
 .. autofunction:: noun_phrases
 '''
-from dossier.models.features.sip import noun_phrases
+from dossier.models.features.basic import emails, image_urls, phones
+from dossier.models.features.sip import noun_phrases, sip_noun_phrases
+from dossier.models.features.stopwords import stopwords
 
 
-__all__ = ['noun_phrases']
+__all__ = [
+    'emails', 'image_urls', 'phones',
+    'noun_phrases', 'sip_noun_phrases',
+    'stopwords',
+]

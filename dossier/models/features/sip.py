@@ -1,7 +1,17 @@
 from __future__ import absolute_import, division, print_function
 
+from collections import Counter
+
 import nltk
 from nltk.corpus import stopwords
+
+from dossier.models.features.stopwords import stopwords as dossier_stopwords
+
+
+def sip_noun_phrases(tfidf, noun_phrases, limit=40):
+    bow = tfidf[tfidf.id2word.doc2bow(noun_phrases)]
+    return {tfidf.id2word[word]: count
+            for word, count in Counter(dict(bow)).most_common(limit)}
 
 
 def noun_phrases(text):
@@ -36,6 +46,9 @@ def noun_phrases(text):
             {<NBAR>}
             {<NBAR><IN><NBAR>}  # Above, connected with in/of/etc...
     '''
+    if len(text.strip()) == 0:
+        return []
+
     chunker = nltk.RegexpParser(grammar)
 
     toks = nltk.regexp_tokenize(text, sentence_re)
@@ -44,6 +57,7 @@ def noun_phrases(text):
     #print postoks
     tree = chunker.parse(postoks)
     stops = stopwords.words('english')
+    stops += dossier_stopwords()
 
     ## These next four functions are standard uses of NLTK illustrated by
     ## http://alexbowe.com/au-naturale/
