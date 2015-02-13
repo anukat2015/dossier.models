@@ -47,6 +47,7 @@ setup(
         'streamcorpus-pipeline',
         'pytest',
         'pytest-diffeo >= 0.1.4',
+        'urlnorm',
     ],
     extras_require={
         'tfidf': ['gensim'],
