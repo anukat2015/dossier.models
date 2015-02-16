@@ -123,9 +123,7 @@ def get_artifact_rows(get_conn, limit=5):
                 # t = conn.table('artifact')
                 print('Restarting scanner at key: %r' % last_key)
             scanner = t.scan(row_start=last_key, limit=limit, batch_size=20)
-            for i, (key, data) in enumerate(scanner):
-                if i >= 10:
-                    raise TTransportException(message='hi')
+            for key, data in scanner:
                 last_key = key
                 yield key, unpack_artifact_row(data)
         except TTransportException:
