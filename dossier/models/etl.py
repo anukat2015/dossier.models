@@ -174,7 +174,11 @@ def generate_fcs(tfidf, get_conn, pool, add, limit=5, batch_size=100):
         if fc is None:
             continue
         add_sip_to_fc(fc, tfidf)
-        batch.append((cid, fc))
+        if not any(cid == cid2 for cid2, _ in batch):
+            # Since we can restart the scanner, we may end up regenerating
+            # FCs for the same key in the same batch. This results in
+            # undefined behavior in kvlayer.
+            batch.append((cid, fc))
 
         if len(batch) >= batch_size:
             add(batch)
