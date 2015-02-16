@@ -14,7 +14,7 @@ database, but it will be generalized as part of future work.)
 from __future__ import absolute_import, division, print_function
 
 import argparse
-from collections import Counter, defaultdict
+from collections import defaultdict
 from itertools import chain, islice
 import multiprocessing
 import re
@@ -31,6 +31,7 @@ try:
 except ImportError:
     TFIDF = False
 import happybase
+from thrift.transport.TTransport import TTransportException
 
 from dossier.fc import FeatureCollection, FeatureCollectionChunk, StringCounter
 from dossier.store import Store
@@ -109,10 +110,28 @@ def row_to_content_obj(key_row):
     return cid, fc
 
 
-def get_artifact_rows(conn, limit=5):
+def get_artifact_rows(get_conn, limit=5):
+    conn = get_conn()
     t = conn.table('artifact')
-    for key, data in t.scan(limit=limit, batch_size=50):
-        yield key, unpack_artifact_row(data)
+    last_key = None
+    while True:
+        try:
+            if last_key is not None:
+                # print('Scanner failed. Reconnecting...')
+                # conn.close()
+                # conn = get_conn()
+                # t = conn.table('artifact')
+                print('Restarting scanner at key: %r' % last_key)
+            scanner = t.scan(row_start=last_key, limit=limit, batch_size=20)
+            for i, (key, data) in enumerate(scanner):
+                if i >= 10:
+                    raise TTransportException(message='hi')
+                last_key = key
+                yield key, unpack_artifact_row(data)
+        except TTransportException:
+            traceback.print_exc()
+        else:
+            break
 
 
 def unpack_artifact_row(row):
@@ -150,8 +169,8 @@ def unpack_noun_phrases(row):
     return features.noun_phrases(body)
 
 
-def generate_fcs(tfidf, conn, pool, add, limit=5, batch_size=100):
-    rows = get_artifact_rows(conn, limit=limit)
+def generate_fcs(tfidf, get_conn, pool, add, limit=5, batch_size=100):
+    rows = get_artifact_rows(get_conn, limit=limit)
     batch = []
     for i, (cid, fc) in enumerate(pool.imap(row_to_content_obj, rows), 1):
         if fc is None:
@@ -215,15 +234,20 @@ class App(yakonfig.cmd.ArgParseCmd):
                             'with the `dossier.etl tfidf` script.')
 
     def do_convert(self, args):
+        def get_conn():
+            print('Connecting...')
+            conn = happybase.Connection(host=args.host, port=args.port,
+                                        table_prefix=args.table_prefix)
+            conn.tables()
+            print('connected!')
+            return conn
+
         if not TFIDF:
             print('"gensim" is required for computing TF-IDF.',
                   file=sys.stderr)
             sys.exit(1)
         print('Loading TF-IDF model...')
         tfidf = models.TfidfModel.load(args.tfidf_model_path)
-        print('Connecting...')
-        conn = happybase.Connection(host=args.host, port=args.port,
-                                    table_prefix=args.table_prefix)
         pool = multiprocessing.Pool(processes=args.processes)
         limit = None if args.limit == 0 else args.limit
 
@@ -237,7 +261,7 @@ class App(yakonfig.cmd.ArgParseCmd):
                 for _, fc in cids_and_fcs:
                     chunk.add(fc)
         print('Generating FCs...')
-        generate_fcs(tfidf, conn, pool, add,
+        generate_fcs(tfidf, get_conn, pool, add,
                      limit=limit, batch_size=args.batch_size)
         if chunk is not None:
             chunk.flush()
