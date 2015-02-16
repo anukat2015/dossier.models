@@ -14,11 +14,14 @@ import collections
 from itertools import chain, ifilter, imap, islice
 import logging
 import operator
+import math
 
+from scipy.spatial.distance import cosine
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.linear_model import LogisticRegression
 
+from dossier.fc import StringCounter
 from dossier.label import CorefValue, Label, expand_labels
 from dossier.web import Folders, engine_index_scan, streaming_sample
 
@@ -85,7 +88,7 @@ def create_search_engine(store, label_store, similar=True):
             return index_scan(content_id, filter_pred, limit)
 
         ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
-        results = imap(lambda ((cid, fc), p): (cid, fc, {'probability': p}),
+        results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
         return {
             'results': list(islice(results, limit)),
@@ -141,6 +144,30 @@ class PairwiseFeatureLearner(object):
         self.canopy_limit = canopy_limit
         self.label_limit = label_limit
 
+    def as_result(self, cid, fc, p):
+        fnames = sorted(set(self.query_fc.keys()).intersection(fc.keys()))
+        feat_info = {n: {'common_values': {}, 'phi': None} for n in fnames}
+        for n in fnames:
+            feat_info[n]['weight'] = self.feature_weights.get(n)
+        for n, qfeat, cfeat in ((n, self.query_fc[n], fc[n]) for n in fnames):
+            if not isinstance(qfeat, StringCounter) \
+                    or not isinstance(cfeat, StringCounter):
+                continue
+            vals = set(qfeat.keys()).intersection(cfeat.keys())
+            feat_info[n]['common_values'] = sorted(filter(None, vals))
+
+            all_vals = sorted(set(qfeat.keys()).union(cfeat.keys()))
+            if len(all_vals) > 0:
+                qcounts = [qfeat.get(v, 0) for v in all_vals]
+                ccounts = [cfeat.get(v, 0) for v in all_vals]
+                dist = 1 - cosine(qcounts, ccounts)
+                if not math.isnan(dist):
+                    feat_info[n]['phi'] = dist
+        return (cid, fc, {
+            'probability': p,
+            'feature_cmp_info': feat_info,
+        })
+
     def probabilities(self):
         '''Trains a model and predicts recommendations.
 
@@ -191,7 +218,7 @@ class PairwiseFeatureLearner(object):
         indexed_labels = labels_to_indexed_coref_values(content_objs, labels)
 
         logger.info('Training...')
-        model = self.train([fc for _, fc in content_objs], indexed_labels)
+        model = self.train(content_objs, indexed_labels)
         if model is None:
             logger.info(
                 'Could not train model: insufficient training data. '
@@ -202,7 +229,7 @@ class PairwiseFeatureLearner(object):
         return zip(candidates, self.classify(
             feature_names, classifier, transformer, candidates))
 
-    def train(self, fcs, idx_labels):
+    def train(self, content_objs, idx_labels):
         '''Trains and returns a model using sklearn.
 
         If there are new labels to add, they can be added, returns an
@@ -220,6 +247,7 @@ class PairwiseFeatureLearner(object):
         if len({lab[0] for lab in idx_labels}) <= 1:
             return None
 
+        fcs = [fc for _, fc in content_objs]
         feature_names = vectorizable_features(fcs)
         dis = dissimilarities(feature_names, fcs)
 
@@ -227,13 +255,16 @@ class PairwiseFeatureLearner(object):
         for coref_value, i, j in idx_labels:
             # i, j are indices into the list `fcs`
             labels.append(coref_value)  # either -1 or 1
-            phi_dicts.append({name: dis[name][i,j] for name in feature_names})
+            phi_dict = {name: dis[name][i,j] for name in feature_names}
+            phi_dicts.append(phi_dict)
 
         vec = dict_vector()
         training_data = vec.fit_transform(phi_dicts)
 
         model = LogisticRegression(class_weight='auto', penalty='l1')
         model.fit(training_data, labels)
+        self.feature_weights = {name: model.coef_[0][i]
+                                for i, name in enumerate(feature_names)}
         return feature_names, model, vec
 
     def classify(self, feature_names, classifier, transformer, candidates):
@@ -304,6 +335,8 @@ class PairwiseFeatureLearner(object):
         while len(progress) > 0:
             for idx_name in index_names:
                 for name in self.query_fc.get(idx_name, {}):
+                    if len(name) == 0:
+                        continue
                     key = (idx_name, name)
                     if key not in progress:
                         continue
