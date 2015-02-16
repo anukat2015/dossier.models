@@ -228,7 +228,7 @@ def test_training(pairwise):
 
     content_objs, labels = interesting_training_data()
     indiced = mod_pairwise.labels_to_indexed_coref_values(content_objs, labels)
-    names, model, vec = pairwise.train([fc for _, fc in content_objs], indiced)
+    names, model, vec = pairwise.train(content_objs, indiced)
 
     assert names == vec.get_feature_names()
     assert_approx_equal(model.coef_[0][0], 0.61903921)
