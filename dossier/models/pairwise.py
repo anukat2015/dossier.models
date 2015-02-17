@@ -327,16 +327,17 @@ class PairwiseFeatureLearner(object):
         # An index is removed from `progress` when it no longer produces
         # results.
         for idx_name in index_names:
-            for name in self.query_fc.get(idx_name, {}):
-                progress[(idx_name, name)] = 0
+            feat = self.query_fc.get(idx_name)
+            if isinstance(feat, StringCounter):
+                for name in feat:
+                    if len(name) > 0:
+                        progress[(idx_name, name)] = 0
 
         logger.info('starting index scan (query content id: %s)',
                     self.query_content_id)
         while len(progress) > 0:
             for idx_name in index_names:
-                for name in self.query_fc.get(idx_name, {}):
-                    if len(name) == 0:
-                        continue
+                for name in self.query_fc.get(idx_name, []):
                     key = (idx_name, name)
                     if key not in progress:
                         continue
