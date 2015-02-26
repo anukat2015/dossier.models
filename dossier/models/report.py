@@ -223,7 +223,7 @@ class Item:
         '''
         type = subtopic[3]
         if type not in Item.constructors:
-            raise LookupError   # perhaps customise this exception?
+            raise LookupError(type)   # perhaps customise this exception?
 
         return Item.constructors[type](generator, subtopic)
 
@@ -349,8 +349,17 @@ class ItemText(Item):
         worksheet.write(row, 3, "text", fmt['type_text'])
         worksheet.write(row, 4, self.data, fmt['default'])
 
+
+class ItemManual(ItemText):
+    pass
+
+
+Item.constructors = {
+    "text": ItemText,
+    "image": ItemImage,
+    "manual": ItemManual,
+}
 '''Map (dict) holding references to class constructors per item type.'''
-Item.constructors = { "text": ItemText, "image": ItemImage }
 
 
 if __name__ == '__main__':
