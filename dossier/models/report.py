@@ -31,8 +31,8 @@ def main():
         description='SortingDesk report generation tool')
     p.add_argument('-c', '--config', required=True,
                    help='dossier stack YAML config file')
-    p.add_argument('-o', '--output',
-                   help='path to write report file')
+    p.add_argument('-o', '--output', required=True,
+                   help='path to write Excel workbook file')
     p.add_argument('-u', '--user', default=None, help='user name (default=ALL)')
     p.add_argument('folder', help='folder name')
     p.add_argument('subfolder', nargs='?', default=None,
