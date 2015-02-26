@@ -3,7 +3,11 @@ logging:
     level: DEBUG
 
 dossier.store:
-  feature_indexes: ['bowNP_sip', 'bowNP', 'phone', 'region']
+  feature_indexes: ['phone', 'email', 'bowNP_sip', 'region', 'image_url']
+
+dossier.web:
+  index_scan_make_fc:
+    tfidf_path: /memex-100000.tfidf
 
 kvlayer:
   app_name: dossierstack

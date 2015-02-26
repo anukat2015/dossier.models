@@ -25,9 +25,10 @@ RUN apt-get install -y libsnappy1 libsnappy-dev
 
 # Now install dossier.models.
 RUN pip install --pre dossier.models
+RUN pip install gensim
+RUN mkdir /kvlayer
 
 ADD config.yaml /config/config.yaml
-ADD demo.db /kvlayer/demo.db
 
 # Finally, run the dossier.models web server.
 EXPOSE 57312
