@@ -196,6 +196,8 @@ class ReportGenerator:
         ws.write("E4", "Content", fmt['header'])
         ws.write("F4", "Image URL", fmt['header'])
 
+        # TODO: we probably want to wrap the following in a try-catch block, in
+        # case the call to folders.subtopics fails.
         row = 4
         for i in self.folders.subtopics(self.fid, sid, self.user):
             Item.construct(self, i).generate_to(ws, row)
