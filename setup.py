@@ -48,6 +48,8 @@ setup(
         'pytest',
         'pytest-diffeo >= 0.1.4',
         'urlnorm',
+        'xlsxwriter',
+        'Pillow'
     ],
     extras_require={
         'tfidf': ['gensim'],
