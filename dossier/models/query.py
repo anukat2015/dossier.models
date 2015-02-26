@@ -57,15 +57,10 @@ def list_projects(folders, folder = None, user = None):
         return
 
     # List subfolders of a specific folder
-    for f in folders.folders(user):
-        if not f == fid:
-            continue
-
+    try:
         for sid in folders.subfolders(fid, user):
             print(Folders.id_to_name(sid))
-
-        break
-    else:
+    except KeyError:
         print("E: folder not found: %s" %folder, file=sys.stderr)
 
 
