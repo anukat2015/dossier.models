@@ -29,7 +29,8 @@ class Factory(yakonfig.factory.AutoFactory):
 def main():
     p = argparse.ArgumentParser(
         description='SortingDesk report generation tool')
-    p.add_argument('-c', '--config', help='dossier stack YAML config file')
+    p.add_argument('-c', '--config', required=True,
+                   help='dossier stack YAML config file')
     p.add_argument('-o', '--output',
                    help='path to write report file')
     p.add_argument('-u', '--user', default=None, help='user name (default=ALL)')
