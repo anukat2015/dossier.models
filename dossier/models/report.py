@@ -2,22 +2,22 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+from io import BytesIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 import sys
+from urllib2 import urlopen
+
+from PIL import Image
+import xlsxwriter
 
 from dossier.label import LabelStore
 from dossier.store import Store
+from dossier.models.subtopic import Folders
 import kvlayer
 import yakonfig
-
-from dossier.models.subtopic import Folders
-
-import xlsxwriter
-from PIL import Image
-from cStringIO import StringIO
-from io import BytesIO
-from base64 import b64decode
-import urllib
-from urllib2 import urlopen
 
 
 class Factory(yakonfig.factory.AutoFactory):
