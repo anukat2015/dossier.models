@@ -78,10 +78,7 @@ class ReportGenerator:
         sid = None if subfolder is None else Folders.name_to_id(subfolder)
 
         # Ensure folder exists.
-        for f in self.folders.folders(self.user):
-            if f == self.fid:
-                break
-        else:
+        if not self.fid in self.folders.folders(self.user):
             print("E: folder not found: %s" %self.folder, file=sys.stderr)
             return
 
@@ -162,21 +159,18 @@ class ReportGenerator:
         assert sid is not None
 
         # Ensure subfolder exists
-        for s in self.folders.subfolders(self.fid, self.user):
-            if not s == sid:
-                continue
-
-            self.__generate_for_subfolder(sid)
-            break
-        else:
+        if not sid in self.folders.subfolders(self.fid, self.user):
             subfolder = Folders.id_to_name(sid)
             print("E: subfolder not found: %s" %subfolder, file=sys.stderr)
+            return
+
+        self.__generate_for_subfolder(sid)
 
 
     def __generate_for_subfolder(self, sid):
         ''' Generate report for a subfolder.
 
-        :param sid: The subfolder id
+        :param sid: The subfolder id; assumed valid
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
