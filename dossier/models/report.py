@@ -286,8 +286,7 @@ class ItemImage(Item):
             url = self.data[0]
             if url:
                 image = self.resize_image(BytesIO(urlopen(url).read()))
-                worksheet.insert_image(row, 4, url,
-                                       { 'image_data': image })
+                worksheet.insert_image(row, 4, url, { 'image_data': image })
                 embedded = True
             else:
                 worksheet.write(row, 4, '<unavailable>')
