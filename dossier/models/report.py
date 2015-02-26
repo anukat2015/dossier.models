@@ -42,11 +42,10 @@ def main():
     factory = Factory(config)
     store = factory.create(Store)
     label_store = factory.create(LabelStore)
-    user = args.user
 
     # Instantiate and run report generator.
     ReportGenerator(Folders(store, label_store), args.output,
-                    args.folder, user).run(args.subfolder)
+                    args.folder, args.user).run(args.subfolder)
 
 
 # Comments:
