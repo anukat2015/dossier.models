@@ -44,7 +44,7 @@ class Folders(web.Folders):
                 except KeyError:
                     # We have a dangling label folks!
                     continue
-                yield cid, subid, subtopic_type(subid), data
+                yield cid, fc['meta_url'], subid, subtopic_type(subid), data
 
 
 def typed_subtopic_data(fc, subid):
