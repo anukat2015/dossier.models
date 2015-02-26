@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import base64
 import re
 
+from dossier.fc import StringCounter
 import dossier.web as web
 
 
@@ -51,15 +52,24 @@ def typed_subtopic_data(fc, subid):
     '''Returns typed subtopic data from an FC.'''
     # I don't think this code will change after we fix the data race bug. ---AG
     ty = subtopic_type(subid)
-    data = fc[subid]
-    assert isinstance(data, unicode)
+    data = get_unicode_feature(fc, subid)
+    assert isinstance(data, unicode), \
+        'data should be `unicode` but is %r' % type(data)
     if ty == 'image':
-        img = re.sub('^data:image/[a-zA-Z]+;base64,', '', fc[subid + '|data'])
+        img_data = get_unicode_feature(fc, subid + '|data')
+        img = re.sub('^data:image/[a-zA-Z]+;base64,', '', img_data)
         img = base64.b64decode(img.decode('utf-8'))
         return data, img
     elif ty in ('text', 'manual'):
         return data
     raise ValueError('unrecognized subtopic type "%s"' % ty)
+
+
+def get_unicode_feature(fc, feat_name):
+    feat = fc[feat_name]
+    if isinstance(feat, StringCounter) and len(feat) == 0:
+        return u''
+    return feat
 
 
 def subtopic_type(subid):
