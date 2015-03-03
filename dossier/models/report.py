@@ -2,23 +2,22 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+from io import BytesIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 import sys
+from urllib2 import urlopen
+
+from PIL import Image
+import xlsxwriter
 
 from dossier.label import LabelStore
 from dossier.store import Store
+from dossier.models.subtopic import Folders
 import kvlayer
 import yakonfig
-
-from dossier.models.subtopic import Folders
-
-import xlsxwriter
-from PIL import Image
-from cStringIO import StringIO
-from io import BytesIO
-from base64 import b64decode
-import urllib
-from urllib2 import urlopen
-import re
 
 
 class Factory(yakonfig.factory.AutoFactory):
@@ -237,7 +236,7 @@ class Item:
         '''
         type = subtopic[3]
         if type not in Item.constructors:
-            raise LookupError   # perhaps customise this exception?
+            raise LookupError(type)   # perhaps customise this exception?
 
         return Item.constructors[type](generator, subtopic)
 
@@ -363,8 +362,17 @@ class ItemText(Item):
         worksheet.write(row, 3, "text", fmt['type_text'])
         worksheet.write(row, 4, self.data, fmt['default'])
 
+
+class ItemManual(ItemText):
+    pass
+
+
+Item.constructors = {
+    "text": ItemText,
+    "image": ItemImage,
+    "manual": ItemManual,
+}
 '''Map (dict) holding references to class constructors per item type.'''
-Item.constructors = { "text": ItemText, "image": ItemImage }
 
 
 if __name__ == '__main__':
