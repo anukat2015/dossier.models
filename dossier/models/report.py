@@ -207,8 +207,10 @@ class ReportGenerator:
 
 
     def _sanitise_sheetname(self, sheetname):
-        '''Check for valid worksheet names. We check the length, if it contains any
-        invalid chars and if the sheetname is unique in the workbook.
+        '''Sanitize worksheet names.
+
+        The length of the sheetname is kept within 31 characters and any
+        invalid chars are replaced by underscores.
 
         '''
         # Ensure that invalid characters are converted to underscore, whilst
