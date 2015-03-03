@@ -9,6 +9,7 @@ except ImportError:
     from StringIO import StringIO
 import sys
 from urllib2 import urlopen
+import re
 
 from PIL import Image
 import xlsxwriter
@@ -175,7 +176,6 @@ class ReportGenerator:
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
         name = self._sanitise_sheetname(Folders.id_to_name(sid))
-        print("Creating sheet name: %s" %name)
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
