@@ -18,6 +18,7 @@ from io import BytesIO
 from base64 import b64decode
 import urllib
 from urllib2 import urlopen
+import re
 
 
 class Factory(yakonfig.factory.AutoFactory):
@@ -174,7 +175,8 @@ class ReportGenerator:
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
-        name = Folders.id_to_name(sid)
+        name = self._sanitise_sheetname(Folders.id_to_name(sid))
+        print("Creating sheet name: %s" %name)
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
@@ -202,6 +204,16 @@ class ReportGenerator:
         for i in self.folders.subtopics(self.fid, sid, self.user):
             Item.construct(self, i).generate_to(ws, row)
             row += 1
+
+
+    def _sanitise_sheetname(self, sheetname):
+        '''Check for valid worksheet names. We check the length, if it contains any
+        invalid chars and if the sheetname is unique in the workbook.
+
+        '''
+        # Ensure that invalid characters are converted to underscore, whilst
+        # making sure sheetname's length falls within 31 chars.
+        return re.sub(r"[\[\]:*?/\\]", "_", sheetname[:31])
 
 
 class Item:
