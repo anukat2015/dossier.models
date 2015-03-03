@@ -121,14 +121,14 @@ class ReportGenerator:
 
         # Generate report for a specific subfolder or *all* subfolders of
         # self.folder .
-        if sid is None: self.__generate_report_all()
-        else:           self.__generate_report_single(sid)
+        if sid is None: self._generate_report_all()
+        else:           self._generate_report_single(sid)
 
         # done and outta here
         self.workbook.close()
 
 
-    def __generate_report_all(self):
+    def _generate_report_all(self):
         ''' Generate report for all subfolders contained by self.folder .
 
         Private method.'''
@@ -138,18 +138,18 @@ class ReportGenerator:
         # Do all subfolders
         for sid in self.folders.subfolders(self.fid, self.user):
             count += 1
-            self.__generate_for_subfolder(sid)
+            self._generate_for_subfolder(sid)
 
         if count == 0:
             print("I: empty workbook created: no subfolders found")
 
 
-    def __generate_report_single(self, sid):
+    def _generate_report_single(self, sid):
         '''Generate report for subfolder given by sid .
 
         The main purpose of this method is to make sure the subfolder given by
         sid does indeed exist.  All real work is delegated to
-        __generate_for_subfolder.
+        _generate_for_subfolder.
 
         :param sid: The subfolder id
 
@@ -164,10 +164,10 @@ class ReportGenerator:
             print("E: subfolder not found: %s" %subfolder, file=sys.stderr)
             return
 
-        self.__generate_for_subfolder(sid)
+        self._generate_for_subfolder(sid)
 
 
-    def __generate_for_subfolder(self, sid):
+    def _generate_for_subfolder(self, sid):
         ''' Generate report for a subfolder.
 
         :param sid: The subfolder id; assumed valid
