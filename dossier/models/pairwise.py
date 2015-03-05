@@ -146,16 +146,21 @@ class PairwiseFeatureLearner(object):
 
     def as_result(self, cid, fc, p):
         fnames = sorted(set(self.query_fc.keys()).intersection(fc.keys()))
-        feat_info = {n: {'common_values': {}, 'similarity': None}
-                     for n in fnames}
+        intermediates = {n: {'kernel': 'cosine',
+                             'feature1': n,
+                             'feature2': n,
+                             'kernel_value': None,
+                             'weight': None,
+                             'common_feature_values': []} for n in fnames}
         for n in fnames:
-            feat_info[n]['weight'] = self.feature_weights.get(n)
+            intermediates[n]['weight'] = self.feature_weights.get(n)
         for n, qfeat, cfeat in ((n, self.query_fc[n], fc[n]) for n in fnames):
             if not isinstance(qfeat, StringCounter) \
                     or not isinstance(cfeat, StringCounter):
                 continue
             vals = set(qfeat.keys()).intersection(cfeat.keys())
-            feat_info[n]['common_values'] = sorted(filter(None, vals))
+            intermediates[n]['common_feature_values'] = \
+                sorted(filter(None, vals))
 
             all_vals = sorted(set(qfeat.keys()).union(cfeat.keys()))
             if len(all_vals) > 0:
@@ -163,10 +168,10 @@ class PairwiseFeatureLearner(object):
                 ccounts = [cfeat.get(v, 0) for v in all_vals]
                 sim = cosine(qcounts, ccounts)
                 if not math.isnan(sim):
-                    feat_info[n]['similarity'] = sim
+                    intermediates[n]['kernel_value'] = sim
         return (cid, fc, {
             'probability': p,
-            'feature_cmp_info': feat_info,
+            'intermediate_model_results': intermediates.values(),
         })
 
     def probabilities(self):
