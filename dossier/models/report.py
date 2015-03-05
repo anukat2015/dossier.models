@@ -9,6 +9,7 @@ except ImportError:
     from StringIO import StringIO
 import sys
 from urllib2 import urlopen
+import re
 
 from PIL import Image
 import xlsxwriter
@@ -33,7 +34,8 @@ def main():
                    help='dossier stack YAML config file')
     p.add_argument('-o', '--output', required=True,
                    help='path to write Excel workbook file')
-    p.add_argument('-u', '--user', default=None, help='user name (default=ALL)')
+    p.add_argument(
+        '-u', '--user', default=None, help='user name (default=ALL)')
     p.add_argument('folder', help='folder name')
     p.add_argument('subfolder', nargs='?', default=None,
                    help='subfolder name (default=ALL)')
@@ -51,8 +53,10 @@ def main():
 
 # Comments:
 class ReportGenerator:
+
     '''Generates a report in Excel format.'''
-    def __init__(self, folders, output, folder, user = None):
+
+    def __init__(self, folders, output, folder, user=None):
         '''Class constructor.
 
         :param folders: Reference to folder.Folders instance
@@ -61,7 +65,8 @@ class ReportGenerator:
         including relative or absolute path
 
         :param folder: folder name to generate report for
-        :param subfolder: subfolder name; must be contained by folder and can be None
+        :param subfolder: subfolder name; must be contained by folder and can
+        be None
         :param user: Generate report on data created by specified user.
         '''
         self.folders, self.output = folders, output
@@ -69,28 +74,27 @@ class ReportGenerator:
         self.fid = Folders.name_to_id(folder)
         self.user = user
         self.workbook = None
-        self.formats = {};
+        self.formats = {}
 
-
-    def run(self, subfolder = None):
+    def run(self, subfolder=None):
         '''Generate the report.'''
         subfolder = subfolder
         sid = None if subfolder is None else Folders.name_to_id(subfolder)
 
         # Ensure folder exists.
         if not self.fid in self.folders.folders(self.user):
-            print("E: folder not found: %s" %self.folder, file=sys.stderr)
+            print("E: folder not found: %s" % self.folder, file=sys.stderr)
             return
 
         # Create workbook.
         wb = self.workbook = xlsxwriter.Workbook(self.output)
 
         # Create the different styles used by this report generator.
-        self.formats['title'] = wb.add_format( { 'font_size': '18',
-                                                 'bold': True } )
+        self.formats['title'] = wb.add_format({'font_size': '18',
+                                               'bold': True})
 
-        self.formats['default'] = wb.add_format( { 'align': 'top' } )
-        self.formats['bold'] = wb.add_format({ 'bold': True })
+        self.formats['default'] = wb.add_format({'align': 'top'})
+        self.formats['bold'] = wb.add_format({'bold': True})
 
         self.formats['header'] = wb.add_format({
             'bold': True,
@@ -100,35 +104,36 @@ class ReportGenerator:
             'font_color': '#506050',
             'bg_color': '#f5f5f5',
             'right': 1,
-            'border_color': 'white' })
+            'border_color': 'white'})
 
-        self.formats['pre'] = wb.add_format({ 'font_name': 'Courier',
-                                              'valign': 'top' } )
+        self.formats['pre'] = wb.add_format({'font_name': 'Courier',
+                                             'valign': 'top'})
 
-        self.formats['link'] = wb.add_format({ 'valign': 'top',
-                                               'font_color': 'blue',
-                                               'underline': True } )
+        self.formats['link'] = wb.add_format({'valign': 'top',
+                                              'font_color': 'blue',
+                                              'underline': True})
 
-        self.formats['type_text'] = wb.add_format( {
+        self.formats['type_text'] = wb.add_format({
             'font_color': '#BF8645',
             'valign': 'top',
-            'align': 'center'} )
+            'align': 'center'})
 
-        self.formats['type_image'] = wb.add_format( {
+        self.formats['type_image'] = wb.add_format({
             'font_color': '#84BF45',
             'valign': 'top',
-            'align': 'center' } )
+            'align': 'center'})
 
         # Generate report for a specific subfolder or *all* subfolders of
         # self.folder .
-        if sid is None: self.__generate_report_all()
-        else:           self.__generate_report_single(sid)
+        if sid is None:
+            self._generate_report_all()
+        else:
+            self._generate_report_single(sid)
 
         # done and outta here
         self.workbook.close()
 
-
-    def __generate_report_all(self):
+    def _generate_report_all(self):
         ''' Generate report for all subfolders contained by self.folder .
 
         Private method.'''
@@ -138,18 +143,17 @@ class ReportGenerator:
         # Do all subfolders
         for sid in self.folders.subfolders(self.fid, self.user):
             count += 1
-            self.__generate_for_subfolder(sid)
+            self._generate_for_subfolder(sid)
 
         if count == 0:
             print("I: empty workbook created: no subfolders found")
 
-
-    def __generate_report_single(self, sid):
+    def _generate_report_single(self, sid):
         '''Generate report for subfolder given by sid .
 
         The main purpose of this method is to make sure the subfolder given by
         sid does indeed exist.  All real work is delegated to
-        __generate_for_subfolder.
+        _generate_for_subfolder.
 
         :param sid: The subfolder id
 
@@ -161,32 +165,31 @@ class ReportGenerator:
         # Ensure subfolder exists
         if not sid in self.folders.subfolders(self.fid, self.user):
             subfolder = Folders.id_to_name(sid)
-            print("E: subfolder not found: %s" %subfolder, file=sys.stderr)
+            print("E: subfolder not found: %s" % subfolder, file=sys.stderr)
             return
 
-        self.__generate_for_subfolder(sid)
+        self._generate_for_subfolder(sid)
 
-
-    def __generate_for_subfolder(self, sid):
+    def _generate_for_subfolder(self, sid):
         ''' Generate report for a subfolder.
 
         :param sid: The subfolder id; assumed valid
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
-        name = Folders.id_to_name(sid)
+        name = self._sanitise_sheetname(Folders.id_to_name(sid))
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
-        ws.write("A2", "%s | %s" %(self.folder, name))
+        ws.write("A2", "%s | %s" % (self.folder, name))
 
         # Column dimensions
-        ws.set_column('A:A', 37);
-        ws.set_column('B:B', 37);
-        ws.set_column('C:C', 37);
-        ws.set_column('D:D', 8);
-        ws.set_column('E:E', 30);
-        ws.set_column('F:F', 37);
+        ws.set_column('A:A', 37)
+        ws.set_column('B:B', 37)
+        ws.set_column('C:C', 37)
+        ws.set_column('D:D', 8)
+        ws.set_column('E:E', 30)
+        ws.set_column('F:F', 37)
 
         # Header
         ws.write("A4", "Id", fmt['header'])
@@ -203,8 +206,20 @@ class ReportGenerator:
             Item.construct(self, i).generate_to(ws, row)
             row += 1
 
+    def _sanitise_sheetname(self, sheetname):
+        '''Sanitize worksheet names.
+
+        The length of the sheetname is kept within 31 characters and any
+        invalid chars are replaced by underscores.
+
+        '''
+        # Ensure that invalid characters are converted to underscore, whilst
+        # making sure sheetname's length falls within 31 chars.
+        return re.sub(r"[\[\]:*?/\\]", "_", sheetname[:31])
+
 
 class Item:
+
     ''' Base class of concrete items ItemText and ItemImage. '''
     @staticmethod
     def construct(generator, subtopic):
@@ -240,7 +255,9 @@ class Item:
 
 
 class ItemImage(Item):
+
     ''' Represents an image item for the purpose of report generation. '''
+
     def __init__(self, generator, subtopic):
         '''Constructor.
 
@@ -272,7 +289,7 @@ class ItemImage(Item):
             if self.data:
                 image = self.resize_image(StringIO(self.data[1]))
                 worksheet.insert_image(row, 4, 'image',
-                                       { 'image_data': image } )
+                                       {'image_data': image})
                 embedded = True
         except:
             # We probably wrongly ignoring the exception.  Should really at
@@ -286,7 +303,7 @@ class ItemImage(Item):
             url = self.data[0]
             if url:
                 image = self.resize_image(BytesIO(urlopen(url).read()))
-                worksheet.insert_image(row, 4, url, { 'image_data': image })
+                worksheet.insert_image(row, 4, url, {'image_data': image})
                 embedded = True
             else:
                 worksheet.write(row, 4, '<unavailable>')
@@ -294,7 +311,7 @@ class ItemImage(Item):
         if embedded:
             worksheet.set_row(row, 40)
 
-    def resize_image (self, data):
+    def resize_image(self, data):
         '''Resize image if height over 50 pixels and convert to JPEG.
 
         Given a ByteIO or StringIO data input, this method ensures that the
@@ -316,14 +333,16 @@ class ItemImage(Item):
             height = 50
             image = image.resize((width, 50))
 
-        image.save(stream_out, format="JPEG", quality = 100)
+        image.save(stream_out, format="JPEG", quality=100)
 
         stream_out.seek(0)
         return stream_out
 
 
 class ItemText(Item):
+
     '''Represents a text snippet item for the purpose of report generation.'''
+
     def __init__(self, generator, subtopic):
         '''Constructor.
 
