@@ -1,53 +1,44 @@
-FROM centos:centos6
+FROM ubuntu:14.04
 MAINTAINER Diffeo <support@diffeo.com>
 
-RUN yum install -y epel-release \
- && yum update -y \
- && yum clean all
+RUN apt-get update -y && apt-get install -y python python-pip
 
-# Install C libraries needed for future Python installs;
-# Update the system to current packages;
-# Get a python27-based virtual environment
-RUN yum install -y centos-release-SCL \
- && yum install -y \
-      python27-python-virtualenv gcc-c++ gcc-gfortran git make pkgconfig \
-      redhat-rpm-config rpm-build yum-utils wget s3cmd tar zlib-devel \
-      bzip2-devel lapack-devel blas-devel libxslt-devel xz-devel \
-      snappy-devel \
-      postgresql-devel libpng-devel freetype-devel tk-devel \
- && yum clean all \
- && scl enable python27 'virtualenv /opt/dossier-stack'
-ENV LD_LIBRARY_PATH /opt/rh/python27/root/usr/lib64
+RUN apt-get install -y \
+      make libz-dev libxslt1-dev libxml2-dev python-dev \
+      python-virtualenv g++ xz-utils gfortran liblzma-dev \
+      libpq-dev libfreetype6-dev libblas-dev liblapack-dev \
+      libboost-python-dev libsnappy1 libsnappy-dev
 
-# The default pip in Centos is pretty old, so upgrade it.
-RUN /opt/dossier-stack/bin/pip install --upgrade pip \
- && /opt/dossier-stack/bin/pip install --upgrade setuptools
-
-# Install various Python libraries that take a very long time to compile.
-RUN /opt/dossier-stack/bin/pip install numpy
-RUN /opt/dossier-stack/bin/pip install scipy
-RUN /opt/dossier-stack/bin/pip install scikit-learn
-RUN /opt/dossier-stack/bin/pip install gevent
-RUN /opt/dossier-stack/bin/pip install uwsgi
-RUN /opt/dossier-stack/bin/pip install gensim
-RUN /opt/dossier-stack/bin/pip install matplotlib
-RUN /opt/dossier-stack/bin/pip install nltk
+RUN apt-get install -y \
+      python-numpy python-scipy python-sklearn python-matplotlib \
+      python-gevent uwsgi
 
 # Download and install the NLTK corpus.
-RUN /opt/dossier-stack/bin/python -m nltk.downloader -d /usr/share/nltk_data all
+RUN pip install nltk \
+ && python -m nltk.downloader -d /usr/share/nltk_data all
 
 # Now install dossier.models.
-RUN /opt/dossier-stack/bin/pip install --pre dossier.models
+RUN pip install --pre dossier.models
+RUN pip install gensim
+
+# There is a bug in our pairwise model code that can result in passing a
+# NaN to the sklearn model training. In old versions, this causes the model
+# to raise an exception. In newer versions, it emits a warning and keeps on
+# chugging. So we upgrade! ---AG
+RUN pip install --upgrade scikit-learn
+
+ADD config.yaml /config.yaml
+ADD background-50000.tfidf.gz /
+RUN gunzip /background-50000.tfidf.gz
 
 # Finally, run the dossier.models web server.
 EXPOSE 57312
-CMD /opt/dossier-stack/bin/uwsgi \
-        --http-socket 0.0.0.0:57312 \
-        --virtualenv /opt/dossier-stack \
-        --wsgi dossier.models.web.wsgi \
-        --pyargv "-c /config/config.yaml" \
-        --master \
-        --processes 10 \
-        --vacuum \
-        --harakiri 20 \
-        --max-requests 5000
+CMD uwsgi \
+      --http-socket 0.0.0.0:57312 \
+      --wsgi dossier.models.web.wsgi \
+      --pyargv "-c /config.yaml" \
+      --master \
+      --processes 1 \
+      --vacuum \
+      --harakiri 20 \
+      --max-requests 5000
