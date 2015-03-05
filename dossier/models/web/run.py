@@ -140,8 +140,8 @@ def add_routes(app):
 
 def create_fc_from_html(url, html, tfidf=None):
     soup = BeautifulSoup(unicode(html, 'utf-8'))
-    title = soup.find('title').get_text()
-    body = soup.find('body').prettify()
+    title = soup_get(soup, 'title', lambda v: v.get_text())
+    body = soup_get(soup, 'body', lambda v: v.prettify())
     fc = etl.html_to_fc(body, url=url, other_features={
         u'title': title,
         u'titleBow': StringCounter(title.split()),
@@ -151,6 +151,14 @@ def create_fc_from_html(url, html, tfidf=None):
     if tfidf is not None:
         etl.add_sip_to_fc(fc, tfidf)
     return fc
+
+
+def soup_get(soup, sel, cont):
+    v = soup.find(sel)
+    if v is None:
+        return u''
+    else:
+        return cont(v)
 
 
 def same_subfolder(store, label_store):
