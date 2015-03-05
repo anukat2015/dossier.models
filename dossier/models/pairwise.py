@@ -146,7 +146,8 @@ class PairwiseFeatureLearner(object):
 
     def as_result(self, cid, fc, p):
         fnames = sorted(set(self.query_fc.keys()).intersection(fc.keys()))
-        feat_info = {n: {'common_values': {}, 'phi': None} for n in fnames}
+        feat_info = {n: {'common_values': {}, 'similarity': None}
+                     for n in fnames}
         for n in fnames:
             feat_info[n]['weight'] = self.feature_weights.get(n)
         for n, qfeat, cfeat in ((n, self.query_fc[n], fc[n]) for n in fnames):
@@ -160,9 +161,9 @@ class PairwiseFeatureLearner(object):
             if len(all_vals) > 0:
                 qcounts = [qfeat.get(v, 0) for v in all_vals]
                 ccounts = [cfeat.get(v, 0) for v in all_vals]
-                dist = 1 - cosine(qcounts, ccounts)
-                if not math.isnan(dist):
-                    feat_info[n]['phi'] = dist
+                sim = cosine(qcounts, ccounts)
+                if not math.isnan(sim):
+                    feat_info[n]['similarity'] = sim
         return (cid, fc, {
             'probability': p,
             'feature_cmp_info': feat_info,
