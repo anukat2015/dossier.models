@@ -1,0 +1,4 @@
+# DossierStack Docker image
+
+TODO.
+

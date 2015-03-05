@@ -5,13 +5,12 @@ logging:
 dossier.store:
   feature_indexes: ['phone', 'email', 'bowNP_sip', 'region', 'image_url']
 
-dossier.web:
-  index_scan_make_fc:
-    tfidf_path: /memex-100000.tfidf
+dossier.models:
+  tfidf_path: /background-50000.tfidf
 
 kvlayer:
   app_name: dossierstack
   namespace: demo
   storage_type: filestorage
-  filename: /kvlayer/demo.db
+  filename: /demo.db
   storage_addresses: []
