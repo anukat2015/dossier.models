@@ -1,6 +1,6 @@
 '''
 .. This software is released under an MIT/X11 open source license.
-   Copyright 2012-2014 Diffeo, Inc.
+   Copyright 2012-2015 Diffeo, Inc.
 
 Active learning pairwise search engines
 =======================================
@@ -90,8 +90,11 @@ def create_search_engine(store, label_store, similar=True):
         ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
+        top_results = list(islice(results, limit))
+        suggestions = find_soft_selectors(top_results)
         return {
-            'results': list(islice(results, limit)),
+            'results': top_results,
+            'suggestions': suggestions,
         }
     return _
 
