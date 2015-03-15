@@ -24,7 +24,7 @@ from sklearn.linear_model import LogisticRegression
 from dossier.fc import StringCounter
 from dossier.label import CorefValue, Label, expand_labels
 from dossier.web import Folders, engine_index_scan, streaming_sample
-
+from dossier.models.soft_selectors import find_soft_selectors
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,8 @@ def create_search_engine(store, label_store, similar=True):
     # they are used to keep resource use in check.
     def _(content_id, filter_pred, limit,
           canopy_limit=100, label_limit=100,
-          subtopic_id=None):
+          subtopic_id=None, 
+          **kwargs):
         '''Creates an active learning search engine.
 
         This is a helper function meant to satisfy the interface of
@@ -91,7 +92,9 @@ def create_search_engine(store, label_store, similar=True):
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
         top_results = list(islice(results, limit))
-        suggestions = find_soft_selectors(top_results)
+        ## pass kwargs, so that filter_punctuation and num_tokens can
+        ## be passed from URLs
+        suggestions = find_soft_selectors(top_results, **kwargs)
         return {
             'results': top_results,
             'suggestions': suggestions,
