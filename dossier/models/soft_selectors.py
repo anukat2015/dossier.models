@@ -72,8 +72,9 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation):
     `filter_punctuation' --- if True, punctuation is filtered
 
     '''
-    corpus = list()
-    
+    ## TODO: generatlize this zoning code, so that it works on many
+    ## sites in the HT domain; consider finishing streamcorpus-zoner
+    ## to do this.
     if filter_punctuation:
         ## word tokenizer that removes punctuation
         tokenize = RegexpTokenizer(r'\w+').tokenize
@@ -86,7 +87,7 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation):
         backpage_string = 'backpage.com'
         end_string = 'Poster\'s'
 
-
+    corpus = list()
     for clean_visible in corpus_clean_visibles:
         ## make tokens
         tokens = tokenize(clean_visible) ## already a unicode string
