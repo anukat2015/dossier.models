@@ -15,14 +15,18 @@ import string
 
 import dblogger
 from gensim import corpora, models
+import many_stop_words
 from nltk.tokenize import RegexpTokenizer, word_tokenize
 from nltk.util import ngrams
+import regex as re
 import streamcorpus
+from streamcorpus_pipeline._clean_html import clean_html
+from streamcorpus_pipeline._clean_visible import clean_visible
 import yakonfig
 
 
 logger = logging.getLogger(__name__)
-
+stop_words = many_stop_words.get_stop_words()
 
 
 def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6', max_num_tokens='40', 
@@ -49,20 +53,38 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6', max_num_tok
     if isinstance(filter_punctuation, basestring):
         filter_punctuation = bool(int(filter_punctuation))
 
+    if not ids_and_clean_visible:
+        logger.info('find_soft_selectors called with no ids_and_clean_visible')
+        return
+
+    best_score_overall = 0
+    best_phrase_overall = None
+    peaked_results = []
     for num_tokens in range(start_num_tokens, max_num_tokens + 1):
         results = find_soft_selectors_at_n(ids_and_clean_visible, num_tokens, filter_punctuation)
+        if not results: 
+            logger.info('got no soft selectors for num_tokens %d', num_tokens)
+            continue
         best_score = results[0][0]
         second_best_score = results[1][0]
         logger.info('num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' % 
                     (num_tokens, best_score, second_best_score, (best_score - second_best_score)))
         if second_best_score + peak_score_delta < best_score:
-            return results[0]
+            peaked_results.append( results[0] )
+
+        if best_score > best_score_overall:
+            best_score_overall = best_score
+            best_phrase_overall = results[0]
 
     ## if we do not find one, return None, so {'suggestions': null}
-    return None
+    if peaked_results:
+        peaked_results.sort(reverse=True)
+        return peaked_results
+
+    return [best_phrase_overall]
 
 
-def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation):
+def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zoning_rules=False):
     '''takes a list of clean_visible texts, such as from StreamItems or
     FCs, tokenizes all the texts, and constructs n-grams using
     `num_tokens` sized windows.
@@ -89,36 +111,40 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation):
 
     corpus = list()
     for clean_visible in corpus_clean_visibles:
+
+        ## crudely skip pages that have "error"
+        if re.search(u'error', clean_visible, re.I & re.UNICODE):
+            continue
+
         ## make tokens
         tokens = tokenize(clean_visible) ## already a unicode string
 
-        # print '  '.join(tokens)
-        # print
+        if zoning_rules:
+            ## filter out non backpage pages
+            if backpage_string not in tokens: 
+                continue
 
-        ## filter out non backpage pages
-        if backpage_string not in tokens: 
-            continue
+            ## string that signals the beginning of the body
+            try:
+                idx0 = tokens.index('Reply')
+            except:
+                continue
+            ## string that signals the end of the body
+            try:
+                idx1 = tokens.index(end_string)
+            except:
+                continue
 
-        ## string that signals the beginning of the body
-        try:
-            idx0 = tokens.index('Reply')
-        except:
-            continue
-        ## string that signals the end of the body
-        try:
-            idx1 = tokens.index(end_string)
-        except:
-            continue
-
-        tokens = tokens[idx0:idx1]
-
-        # if 'Yumi' in tokens:
-        #     print ' '.join(tokens)
-        #     print
+            tokens = tokens[idx0:idx1]
 
         ## make ngrams, attach to make strings
         ngrams_strings = list()
         for ngram_tuple in ngrams(tokens, num_tokens):
+            ## score with many_stop_words and drop bad tuples
+            stop_count = sum([int(bool(tok.lower() in stop_words))
+                              for tok in ngram_tuple])
+            if stop_count > num_tokens / 1.5:
+                continue
             ngrams_strings.append(' '.join(ngram_tuple))
         
         corpus.append(ngrams_strings)
@@ -172,8 +198,28 @@ def ids_and_clean_visible_from_streamcorpus_chunk_path(corpus_path):
     passed by the search engine to find_soft_selectors
 
     '''
-    return [(si.stream_id, si.body.clean_visible.decode('utf8'), {})
-            for si in streamcorpus.Chunk(path=corpus_path)]
+    ch = clean_html(clean_html.default_config)
+    cv = clean_visible(clean_visible.default_config)
+    ids_and_clean_visible = []
+    for si in streamcorpus.Chunk(path=corpus_path):
+        if not si.body.clean_visible:
+            ## attempt to make clean_visible
+            if not si.body.raw:
+                logger.critical('no raw content, so skipping: %r', si.abs_url)
+                continue
+            abs_url = si.abs_url
+            si = ch(si, {})
+            if not si: 
+                logger.critical('failed to make clean_html, so skipping: %r', abs_url)
+                continue
+            si = cv(si, {})
+            if not si or not si.body.clean_visible:
+                logger.critical('failed to make clean_visible, so skipping: %r', abs_url)
+                continue                
+        rec = (si.stream_id, si.body.clean_visible.decode('utf8'), {})
+        ids_and_clean_visible.append(rec)
+
+    return ids_and_clean_visible
 
 
 def main():
@@ -202,11 +248,12 @@ def main():
 
     ## mimic the in-process interface:
     ids_and_clean_visible = ids_and_clean_visible_from_streamcorpus_chunk_path(args.corpus)
+    logger.info('gathered %d texts', len(ids_and_clean_visible))
 
     def format_result(result):
         score, soft_selector_phrase, matching_texts = result
         return '%.6f\t%d texts say:\t%s\t%s' % \
-            (score, len(matching_texts), soft_selector_phrase, 
+            (score, len(matching_texts), soft_selector_phrase.encode('utf8'), 
              args.show_ids and repr(matching_texts) or '')
 
 
@@ -219,7 +266,7 @@ def main():
             print('failed to find a best result!')
         else:
             print('found a best result:')
-            print(format_result(best))
+            print('\n'.join(map(format_result, best)))
 
     else:
         results = find_soft_selectors_at_n(ids_and_clean_visible, args.num_tokens, 
