@@ -38,6 +38,7 @@ setup(
         'dossier.web >= 0.7.0',
         'happybase',
         'joblib',
+        'many_stop_words',
         'nltk',
         'numpy',
         'regex',
