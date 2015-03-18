@@ -2,7 +2,6 @@
 
 .. This software is released under an MIT/X11 open source license.
    Copyright 2012-2014 Diffeo, Inc.
-
 '''
 
 from __future__ import absolute_import, division, print_function
@@ -57,11 +56,12 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
     for num_tokens in range(start_num_tokens, max_num_tokens + 1):
         results = find_soft_selectors_at_n(
             ids_and_clean_visible, num_tokens, filter_punctuation)
-        if not results:
-            logger.info('got no soft selectors for num_tokens %d', num_tokens)
+        if len(results) < 2:
+            logger.info('not enough soft selectors for num_tokens %d',
+                        num_tokens)
             continue
-        best_score = results[0][0]
-        second_best_score = results[1][0]
+        best_score = results[0]['score']
+        second_best_score = results[1]['score']
         logger.info(
             'num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' %
             (
@@ -74,12 +74,51 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
         if best_score > best_score_overall:
             best_score_overall = best_score
 
-    ## if we do not find one, return None, so {'suggestions': null}
-    if peaked_results:
-        peaked_results.sort(reverse=True)
-        return peaked_results
-    else:
-        return []
+    peaked_results.sort(key=lambda r: r['score'], reverse=True)
+    return peaked_results
+
+
+def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
+                             filter_punctuation):
+    corpus_clean_visibles = map(itemgetter(1), ids_and_clean_visible)
+    corpus_cids = map(itemgetter(0), ids_and_clean_visible)
+
+    corpus_strings = make_ngram_corpus(
+        corpus_clean_visibles, num_tokens, filter_punctuation)
+
+    ## make dictionary
+    dictionary = corpora.Dictionary(corpus_strings)
+
+    ## make word vectors
+    corpus = map(dictionary.doc2bow, corpus_strings)
+
+    ## train tfidf model
+    tfidf = models.TfidfModel(corpus)
+
+    ## transform coprus
+    corpus_tfidf = tfidf[corpus]
+
+    ## sum up tf-idf across the entire corpus
+    corpus_total = defaultdict(int)
+    inverted_index = defaultdict(set)
+    for doc_idx, doc in enumerate(corpus_tfidf):
+        for word_id, score in doc:
+            corpus_total[word_id] += score
+            inverted_index[word_id].add(corpus_cids[doc_idx])
+
+    ## order the phrases by tf-idf score across the documents
+    corpus_ordered = sorted(
+        corpus_total.items(), key=itemgetter(1), reverse=True)
+
+    top_phrases = []
+    for word_id, score in corpus_ordered:
+        top_phrases.append({
+            'score': score,
+            'phrase': dictionary[word_id],
+            'hits': [{'content_id': cid, 'title': None}
+                     for cid in inverted_index[word_id]],
+        })
+    return top_phrases
 
 
 def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
@@ -144,45 +183,6 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
             ngrams_strings.append(' '.join(ngram_tuple))
         corpus.append(ngrams_strings)
     return corpus
-
-
-def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
-                             filter_punctuation):
-    corpus_clean_visibles = map(itemgetter(1), ids_and_clean_visible)
-    corpus_cids = map(itemgetter(0), ids_and_clean_visible)
-
-    corpus_strings = make_ngram_corpus(
-        corpus_clean_visibles, num_tokens, filter_punctuation)
-
-    ## make dictionary
-    dictionary = corpora.Dictionary(corpus_strings)
-
-    ## make word vectors
-    corpus = map(dictionary.doc2bow, corpus_strings)
-
-    ## train tfidf model
-    tfidf = models.TfidfModel(corpus)
-
-    ## transform coprus
-    corpus_tfidf = tfidf[corpus]
-
-    ## sum up tf-idf across the entire corpus
-    corpus_total = defaultdict(int)
-    inverted_index = defaultdict(set)
-    for doc_idx, doc in enumerate(corpus_tfidf):
-        for word_id, score in doc:
-            corpus_total[word_id] += score
-            inverted_index[word_id].add(corpus_cids[doc_idx])
-
-    ## order the phrases by tf-idf score across the documents
-    corpus_ordered = sorted(
-        corpus_total.items(), key=itemgetter(1), reverse=True)
-
-    top_phrases = []
-    for word_id, score in corpus_ordered:
-        top_phrases.append(
-            (score, dictionary[word_id], inverted_index[word_id]))
-    return top_phrases
 
 
 def ids_and_clean_visible_from_streamcorpus_chunk_path(corpus_path):
