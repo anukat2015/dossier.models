@@ -64,8 +64,7 @@ def create_search_engine(store, label_store, similar=True):
     # This is distinct from `canopy_limit` and `label_limit`, where
     # they are used to keep resource use in check.
     def _(content_id, filter_pred, limit,
-          canopy_limit=100, label_limit=100,
-          subtopic_id=None, 
+          canopy_limit=100, label_limit=100, subtopic_id=None,
           **kwargs):
         '''Creates an active learning search engine.
 

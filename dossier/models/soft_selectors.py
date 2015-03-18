@@ -8,7 +8,6 @@
 from __future__ import absolute_import, division, print_function
 import argparse
 from collections import defaultdict
-from itertools import imap
 import logging
 from operator import itemgetter
 import string
@@ -16,7 +15,7 @@ import string
 import dblogger
 from gensim import corpora, models
 import many_stop_words
-from nltk.tokenize import RegexpTokenizer, word_tokenize
+from nltk.tokenize import RegexpTokenizer
 from nltk.util import ngrams
 import regex as re
 import streamcorpus
@@ -29,62 +28,62 @@ logger = logging.getLogger(__name__)
 stop_words = many_stop_words.get_stop_words()
 
 
-def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6', max_num_tokens='40', 
-                        peak_score_delta='0.01',
-                        filter_punctuation='0', **kwargs):
-    '''external interface for dossier.models.soft_selectors.  This at
-    scans through `num_tokens` values between `start_num_tokens` and
-    `max_num_tokens` and calls `find_soft_selectors_at_n` looking for
-    results in which the top result is more than `peak_score_delta`
-    above the second result.
+def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
+                        max_num_tokens='40', peak_score_delta='0.01',
+                        filter_punctuation='0',
+                        **kwargs):
+    '''External interface for dossier.models.soft_selectors.
 
+    This at scans through `num_tokens` values between
+    `start_num_tokens` and `max_num_tokens` and calls
+    `find_soft_selectors_at_n` looking for results in which the top
+    result is more than `peak_score_delta` above the second result.
 
-    All of the params can be passed from URL parameters, in which case
-    they can be strings and this function will type cast them
+    All of the params can be passed from URL parameters, in which
+    case they can be strings and this function will type cast them
     appropriately.
-
     '''
-    if isinstance(start_num_tokens, basestring):
-        start_num_tokens = int(start_num_tokens)
-    if isinstance(max_num_tokens, basestring):
-        max_num_tokens = int(max_num_tokens)
-    if isinstance(peak_score_delta, basestring):
-        peak_score_delta = float(peak_score_delta)
-    if isinstance(filter_punctuation, basestring):
-        filter_punctuation = bool(int(filter_punctuation))
+    start_num_tokens = int(start_num_tokens)
+    max_num_tokens = int(max_num_tokens)
+    peak_score_delta = float(peak_score_delta)
+    filter_punctuation = bool(int(filter_punctuation))
 
     if not ids_and_clean_visible:
         logger.info('find_soft_selectors called with no ids_and_clean_visible')
         return
 
     best_score_overall = 0
-    best_phrase_overall = None
     peaked_results = []
     for num_tokens in range(start_num_tokens, max_num_tokens + 1):
-        results = find_soft_selectors_at_n(ids_and_clean_visible, num_tokens, filter_punctuation)
-        if not results: 
+        results = find_soft_selectors_at_n(
+            ids_and_clean_visible, num_tokens, filter_punctuation)
+        if not results:
             logger.info('got no soft selectors for num_tokens %d', num_tokens)
             continue
         best_score = results[0][0]
         second_best_score = results[1][0]
-        logger.info('num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' % 
-                    (num_tokens, best_score, second_best_score, (best_score - second_best_score)))
+        logger.info(
+            'num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' %
+            (
+                num_tokens, best_score, second_best_score,
+                (best_score - second_best_score),
+            ))
         if second_best_score + peak_score_delta < best_score:
-            peaked_results.append( results[0] )
+            peaked_results.append(results[0])
 
         if best_score > best_score_overall:
             best_score_overall = best_score
-            best_phrase_overall = results[0]
 
     ## if we do not find one, return None, so {'suggestions': null}
     if peaked_results:
         peaked_results.sort(reverse=True)
         return peaked_results
+    else:
+        return []
 
-    return [best_phrase_overall]
 
-
-def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zoning_rules=False):
+def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
+                      zoning_rules=False):
     '''takes a list of clean_visible texts, such as from StreamItems or
     FCs, tokenizes all the texts, and constructs n-grams using
     `num_tokens` sized windows.
@@ -92,7 +91,6 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zon
     `corpus_clean_visibles' -- list of unicode strings
     `num_tokens' --- the n of the n-grams
     `filter_punctuation' --- if True, punctuation is filtered
-
     '''
     ## TODO: generatlize this zoning code, so that it works on many
     ## sites in the HT domain; consider finishing streamcorpus-zoner
@@ -102,7 +100,6 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zon
         tokenize = RegexpTokenizer(r'\w+').tokenize
         backpage_string = 'backpage'
         end_string = 'Poster'
-
     else:
         #tokenize = word_tokenize
         tokenize = lambda s: string.split(s)
@@ -110,18 +107,17 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zon
         end_string = 'Poster\'s'
 
     corpus = list()
-    for clean_visible in corpus_clean_visibles:
-
+    for clean_vis in corpus_clean_visibles:
         ## crudely skip pages that have "error"
-        if re.search(u'error', clean_visible, re.I & re.UNICODE):
+        if re.search(u'error', clean_vis, re.I & re.UNICODE):
             continue
 
         ## make tokens
-        tokens = tokenize(clean_visible) ## already a unicode string
+        tokens = tokenize(clean_vis) ## already a unicode string
 
         if zoning_rules:
             ## filter out non backpage pages
-            if backpage_string not in tokens: 
+            if backpage_string not in tokens:
                 continue
 
             ## string that signals the beginning of the body
@@ -146,19 +142,17 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation, zon
             if stop_count > num_tokens / 1.5:
                 continue
             ngrams_strings.append(' '.join(ngram_tuple))
-        
         corpus.append(ngrams_strings)
-
     return corpus
 
 
-
-def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens, filter_punctuation):
-
+def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
+                             filter_punctuation):
     corpus_clean_visibles = map(itemgetter(1), ids_and_clean_visible)
     corpus_cids = map(itemgetter(0), ids_and_clean_visible)
 
-    corpus_strings = make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation)
+    corpus_strings = make_ngram_corpus(
+        corpus_clean_visibles, num_tokens, filter_punctuation)
 
     ## make dictionary
     dictionary = corpora.Dictionary(corpus_strings)
@@ -181,15 +175,13 @@ def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens, filter_punctuati
             inverted_index[word_id].add(corpus_cids[doc_idx])
 
     ## order the phrases by tf-idf score across the documents
-    corpus_ordered = sorted(corpus_total.items(), 
-                            key=itemgetter(1),
-                            reverse=True,
-                            )
+    corpus_ordered = sorted(
+        corpus_total.items(), key=itemgetter(1), reverse=True)
 
     top_phrases = []
     for word_id, score in corpus_ordered:
-        top_phrases.append(( score, dictionary[word_id], inverted_index[word_id] ) )
-
+        top_phrases.append(
+            (score, dictionary[word_id], inverted_index[word_id]))
     return top_phrases
 
 
@@ -209,35 +201,41 @@ def ids_and_clean_visible_from_streamcorpus_chunk_path(corpus_path):
                 continue
             abs_url = si.abs_url
             si = ch(si, {})
-            if not si: 
-                logger.critical('failed to make clean_html, so skipping: %r', abs_url)
+            if not si:
+                logger.critical(
+                    'failed to make clean_html, so skipping: %r', abs_url)
                 continue
             si = cv(si, {})
             if not si or not si.body.clean_visible:
-                logger.critical('failed to make clean_visible, so skipping: %r', abs_url)
-                continue                
+                logger.critical(
+                    'failed to make clean_visible, so skipping: %r', abs_url)
+                continue
         rec = (si.stream_id, si.body.clean_visible.decode('utf8'), {})
         ids_and_clean_visible.append(rec)
-
     return ids_and_clean_visible
 
 
 def main():
-    parser = argparse.ArgumentParser('command line tool for debugging and development')
+    parser = argparse.ArgumentParser(
+        'command line tool for debugging and development')
     parser.add_argument('corpus', help='path to a streamcorpus.Chunk file')
-    parser.add_argument('-n', '--num-tokens', default=6, type=int, 
-                        help='the n of the ngrams; used as start_num_tokens for scanning')
-    parser.add_argument('--max-num-tokens', default=40, type=int, 
+    parser.add_argument('-n', '--num-tokens', default=6, type=int,
+                        help='the n of the ngrams; used as start_num_tokens '
+                             'for scanning')
+    parser.add_argument('--max-num-tokens', default=40, type=int,
                         help='maximum number of `n` in n-grams for scanning')
-    parser.add_argument('--peak-score-delta', default=0.01, type=float, 
-                        help='delta in score values required between first and second'
-                        ' result to stop  scanning')
-    parser.add_argument('--scan-window-size', default=False, action='store_true', 
-                        help='if set, scans from the value of -n until it finds '
-                        'a strongly peaked top value')
-    parser.add_argument('--filter-punctuation', default=False, action='store_true', 
-                        help='filter out punctuation; default is to not filter punctuation')
-    parser.add_argument('--show-ids', default=False, action='store_true', 
+    parser.add_argument('--peak-score-delta', default=0.01, type=float,
+                        help='delta in score values required between first '
+                             'and second result to stop  scanning')
+    parser.add_argument('--scan-window-size', default=False,
+                        action='store_true',
+                        help='if set, scans from the value of -n until it '
+                             'finds a strongly peaked top value')
+    parser.add_argument('--filter-punctuation', default=False,
+                        action='store_true',
+                        help='filter out punctuation; default is to not '
+                             'filter punctuation')
+    parser.add_argument('--show-ids', default=False, action='store_true',
                         help='show identifiers in diagnostic output')
     args = yakonfig.parse_args(parser, [yakonfig, dblogger])
 
@@ -247,21 +245,22 @@ def main():
     ## ids_and_clean_visible_from_streamcorpus_chunk_path
 
     ## mimic the in-process interface:
-    ids_and_clean_visible = ids_and_clean_visible_from_streamcorpus_chunk_path(args.corpus)
+    ids_and_clean_visible = ids_and_clean_visible_from_streamcorpus_chunk_path(
+        args.corpus)
     logger.info('gathered %d texts', len(ids_and_clean_visible))
 
     def format_result(result):
         score, soft_selector_phrase, matching_texts = result
         return '%.6f\t%d texts say:\t%s\t%s' % \
-            (score, len(matching_texts), soft_selector_phrase.encode('utf8'), 
+            (score, len(matching_texts), soft_selector_phrase.encode('utf8'),
              args.show_ids and repr(matching_texts) or '')
 
-
     if args.scan_window_size:
-        best = find_soft_selectors(ids_and_clean_visible, 
-                                   start_num_tokens=args.num_tokens, 
-                                   max_num_tokens=args.max_num_tokens, 
-                                   filtered_punctuation=args.filter_punctuation)
+        best = find_soft_selectors(
+            ids_and_clean_visible,
+            start_num_tokens=args.num_tokens,
+            max_num_tokens=args.max_num_tokens,
+            filtered_punctuation=args.filter_punctuation)
         if not best:
             print('failed to find a best result!')
         else:
@@ -269,9 +268,8 @@ def main():
             print('\n'.join(map(format_result, best)))
 
     else:
-        results = find_soft_selectors_at_n(ids_and_clean_visible, args.num_tokens, 
-                                           args.filter_punctuation)
-
+        results = find_soft_selectors_at_n(
+            ids_and_clean_visible, args.num_tokens, args.filter_punctuation)
         print('\n'.join(map(format_result, results)))
 
 
