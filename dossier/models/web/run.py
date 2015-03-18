@@ -200,7 +200,7 @@ def get_application():
             tfidf_model = models.TfidfModel.load(tfidf_path)
         except KeyError:
             pass
-    application.install(
+    routes.app.install(
         config.create_injector('tfidf', lambda: tfidf_model))
     return args, application
 
