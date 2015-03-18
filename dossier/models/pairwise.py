@@ -85,20 +85,23 @@ def create_search_engine(store, label_store, similar=True):
         except InsufficientTrainingData:
             logger.info('Falling back to plain index scan...')
             index_scan = engine_index_scan(store)
-            return index_scan(content_id, filter_pred, limit)
+            engine_result = index_scan(content_id, filter_pred, limit)
+            return add_soft_selectors(engine_result, **kwargs)
 
         ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
         top_results = list(islice(results, limit))
-        ## pass kwargs, so that filter_punctuation and num_tokens can
-        ## be passed from URLs
-        suggestions = find_soft_selectors(top_results, **kwargs)
-        return {
-            'results': top_results,
-            'suggestions': suggestions,
-        }
+        return add_soft_selectors({'results': top_results}, **kwargs)
     return _
+
+
+def add_soft_selectors(engine_result, **kwargs):
+    results = engine_result['results']
+    ids_and_clean = [(r[0], r[1].get(u'meta_clean_visible', ''))
+                     for r in results]
+    engine_result['suggestions'] = find_soft_selectors(ids_and_clean, **kwargs)
+    return engine_result
 
 
 class InsufficientTrainingData(Exception):
@@ -370,17 +373,13 @@ class PairwiseFeatureLearner(object):
 
     def labels_from_query(self, limit=None):
         '''ContentId -> [Label]'''
-        if self.query_subtopic_id is None:
-            return self.topic_labels(limit=limit)
-        else:
-            return self.subtopic_labels(limit=limit)
+        return self.infer_subtopic_labels(limit=limit)
 
-    def subtopic_labels(self, limit=None):
+    def infer_subtopic_labels(self, limit=None):
         # The basic idea here is to aggressively gather truth data while
         # avoiding cross contamination with other subfolders. Since our query
         # is a (content_id, subtopic_id), we can use subtopic connected
         # components to achieve this.
-        assert self.query_subtopic_id is not None
 
         # Short aliases.
         cid, subid = self.query_content_id, self.query_subtopic_id
@@ -459,41 +458,6 @@ class PairwiseFeatureLearner(object):
                                 Folders.DEFAULT_ANNOTATOR_ID,
                                 CorefValue.Negative,
                                 subid, subid2)
-
-    def topic_labels(self, limit=None):
-        # This method is probably bunk for SortingDesk. SortingDesk launches
-        # queries based on subtopic, but this is finding labels at a topic
-        # level. This ends up contaminating the training data by conflating
-        # one subfolder from another (while the UI strongly suggests that
-        # subfolders are distinct).
-        logger.info('Getting connected component')
-        pos_component = self.label_store.connected_component(
-            self.query_content_id)
-        pos_component = streaming_sample(
-            pos_component, limit, limit=hard_limit(limit))
-        pos_expanded = expand_labels(pos_component)
-        logger.info('Getting negative labels')
-
-        # It turns out that inferring negative labels actually takes quite
-        # a bit of time. I think this is because we are being a bit overeager
-        # in how we're adding negative labels in the first place.
-        # We should revisit this when negative labels are applied more
-        # judiciously.
-        # negatives = self.label_store.negative_inference(
-            # self.query_content_id)
-        negatives = ifilter(
-            lambda l: l.value == CorefValue.Negative,
-            self.label_store.directly_connected(self.query_content_id))
-
-        # This tomfoolery makes sure that if there are positive and
-        # negative labels, then we'll grab at least one of each.
-        # (It doesn't matter if we return a little more than `limit` labels.)
-        pos_sample = streaming_sample(
-            chain(pos_component, pos_expanded),
-            limit, limit=hard_limit(limit))
-        neg_sample = streaming_sample(
-            negatives, limit, limit=hard_limit(limit))
-        return pos_sample + neg_sample
 
     def content_objs_from_labels(self, labels):
         '''[Label] -> [(content_id, FeatureCollection)]'''
