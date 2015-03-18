@@ -36,6 +36,7 @@ setup(
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
         'dossier.web >= 0.7.0',
+        'gensim',
         'happybase',
         'joblib',
         'many_stop_words',
@@ -52,9 +53,6 @@ setup(
         'xlsxwriter',
         'Pillow'
     ],
-    extras_require={
-        'tfidf': ['gensim'],
-    },
     include_package_data=True,
     zip_safe=False,
     entry_points={
