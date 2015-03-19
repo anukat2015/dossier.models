@@ -15,6 +15,7 @@ from itertools import ifilter, imap, islice
 import logging
 import operator
 import math
+import re
 
 from scipy.spatial.distance import cosine
 from sklearn.feature_extraction import DictVectorizer
@@ -105,8 +106,17 @@ def add_soft_selectors(engine_result, **kwargs):
     suggestions = find_soft_selectors(ids_and_clean, **kwargs)
     for s in suggestions:
         for hit in s['hits']:
-            hit['title'] = fcs[hit['content_id']].get(u'title')
+            hit['title'] = get_title(fcs[hit['content_id']])
     return dict(engine_result, **{'suggestions': suggestions})
+
+
+def get_title(fc):
+    title = fc.get(u'title')
+    if title is None:
+        m = re.search('<title>(.*?)</title>', fc.get(u'meta_clean_html', ''))
+        if m is not None:
+            title = m.group(1)
+    return title
 
 
 class InsufficientTrainingData(Exception):
