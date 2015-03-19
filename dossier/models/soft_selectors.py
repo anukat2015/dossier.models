@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 stop_words = many_stop_words.get_stop_words()
 
 
-def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
-                        max_num_tokens='40', peak_score_delta='0.01',
+def find_soft_selectors(ids_and_clean_visible, start_num_tokens='9',
+                        max_num_tokens='20', peak_score_delta='0.01',
                         filter_punctuation='0',
                         **kwargs):
     '''External interface for dossier.models.soft_selectors.
