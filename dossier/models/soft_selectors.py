@@ -49,7 +49,7 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='9',
 
     if not ids_and_clean_visible:
         logger.info('find_soft_selectors called with no ids_and_clean_visible')
-        return
+        return []
 
     best_score_overall = 0
     peaked_results = []
