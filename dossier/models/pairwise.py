@@ -11,7 +11,7 @@ Active learning pairwise search engines
 from __future__ import absolute_import, division, print_function
 
 import collections
-from itertools import chain, ifilter, imap, islice
+from itertools import ifilter, imap, islice
 import logging
 import operator
 import math
@@ -22,7 +22,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.linear_model import LogisticRegression
 
 from dossier.fc import StringCounter
-from dossier.label import CorefValue, Label, expand_labels
+from dossier.label import CorefValue, Label
 from dossier.web import Folders, engine_index_scan, streaming_sample
 from dossier.models.soft_selectors import find_soft_selectors
 
@@ -98,10 +98,15 @@ def create_search_engine(store, label_store, similar=True):
 
 def add_soft_selectors(engine_result, **kwargs):
     results = engine_result['results']
-    ids_and_clean = [(r[0], r[1].get(u'meta_clean_visible', ''))
-                     for r in results]
-    engine_result['suggestions'] = find_soft_selectors(ids_and_clean, **kwargs)
-    return engine_result
+    ids_and_clean, fcs = [], {}
+    for r in results:
+        ids_and_clean.append((r[0], r[1].get(u'meta_clean_visible', '')))
+        fcs[r[0]] = r[1]
+    suggestions = find_soft_selectors(ids_and_clean, **kwargs)
+    for s in suggestions:
+        for hit in s['hits']:
+            hit['title'] = fcs[hit['content_id']].get(u'title')
+    return dict(engine_result, **{'suggestions': suggestions})
 
 
 class InsufficientTrainingData(Exception):
