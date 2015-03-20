@@ -106,17 +106,18 @@ def add_soft_selectors(engine_result, **kwargs):
     suggestions = find_soft_selectors(ids_and_clean, **kwargs)
     for s in suggestions:
         for hit in s['hits']:
-            hit['title'] = get_title(fcs[hit['content_id']])
+            hit['title'] = get_title(fcs[hit['content_id']],
+                                     default=s['phrase'])
     return dict(engine_result, **{'suggestions': suggestions})
 
 
-def get_title(fc):
+def get_title(fc, default=None):
     title = fc.get(u'title')
     if title is None:
         m = re.search('<title>(.*?)</title>', fc.get(u'meta_clean_html', ''))
         if m is not None:
             title = m.group(1)
-    return title
+    return title or default
 
 
 class InsufficientTrainingData(Exception):
