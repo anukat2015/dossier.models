@@ -315,8 +315,8 @@ class PairwiseFeatureLearner(object):
         dis = {}
         for name in feature_names:
             vec = dict_vector()
-            query = vec.fit_transform([self.query_fc[name]])
-            cans = vec.transform(fc[name] for _, fc in candidates)
+            query = vec.fit_transform([get_feat(self.query_fc, name)])
+            cans = vec.transform(get_feat(fc, name) for _, fc in candidates)
             dis[name] = 1 - pairwise_distances(
                 cans, query, metric='cosine', n_jobs=1)[:,0]
 
@@ -477,12 +477,19 @@ class PairwiseFeatureLearner(object):
 
     def content_objs_from_labels(self, labels):
         '''[Label] -> [(content_id, FeatureCollection)]'''
+        is_mapping = lambda obj: isinstance(obj, collections.Mapping)
+        def is_valid_fc((cid, fc)):
+            if fc is None:
+                return False
+            if sum(1 for name in fc if is_mapping(fc[name])) == 0:
+                return False
+            return True
+
         ids = set()
         for lab in labels:
             ids.add(lab.content_id1)
             ids.add(lab.content_id2)
-        return list(ifilter(lambda (cid, fc): fc is not None,
-                            self.store.get_many(ids)))
+        return list(ifilter(is_valid_fc, self.store.get_many(ids)))
 
 
 def labels_to_indexed_coref_values(content_objs, labels):
@@ -534,7 +541,7 @@ def dissimilarities(feature_names, fcs):
         # inside py.test causes weird problems. It also doesn't seem like a
         # good idea to do it inside a web server either. ---AG
         dis[name] = 1 - pairwise_distances(
-            dict_vector().fit_transform(fc[name] for fc in fcs),
+            dict_vector().fit_transform([get_feat(fc, name) for fc in fcs]),
             metric='cosine', n_jobs=1)
     return dis
 
@@ -545,6 +552,13 @@ def dict_vector():
 
 def hard_limit(limit):
     return limit if limit is None else (limit * 10)
+
+
+def get_feat(fc, name):
+    if len(fc[name]) == 0:
+        return StringCounter({'': 0})
+    else:
+        return fc[name]
 
 
 def str_to_max_int(s, maximum):
