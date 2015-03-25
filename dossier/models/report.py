@@ -182,11 +182,11 @@ class ReportGenerator(object):
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
-        name = self._sanitise_sheetname(web.Folders.id_to_name(sid))
+        name = self._sanitise_sheetname(uni(web.Folders.id_to_name(sid)))
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
-        ws.write("A2", "%s | %s" % (self.folder_name, name))
+        ws.write("A2", "%s | %s" % (uni(self.folder_name), name))
 
         # Column dimensions
         ws.set_column('A:A', 37)
@@ -249,14 +249,14 @@ class Item(object):
 
     def __init__(self, generator, subtopic):
         self.generator = generator
-        self.content_id, self.meta_url, self.subtopic_id, \
+        self.content_id, self.subtopic_id, self.meta_url, \
             type, self.data = subtopic[0:5]
 
     def generate_to(self, worksheet, row):
         fmt = self.generator.formats
-        worksheet.write(row, 0, self.content_id, fmt['pre'])
-        worksheet.write(row, 1, self.meta_url, fmt['link'])
-        worksheet.write(row, 2, self.subtopic_id, fmt['pre'])
+        worksheet.write(row, 0, uni(self.content_id), fmt['pre'])
+        worksheet.write(row, 1, uni(self.meta_url), fmt['link'])
+        worksheet.write(row, 2, uni(self.subtopic_id), fmt['pre'])
 
 
 class ItemImage(Item):
@@ -268,7 +268,7 @@ class ItemImage(Item):
         Delegates to base class constructor.
 
         '''
-        Item.__init__(self, generator, subtopic)
+        super(ItemImage, self).__init__(generator, subtopic)
 
     def generate_to(self, worksheet, row):
         '''Generate row report.
@@ -281,8 +281,7 @@ class ItemImage(Item):
 
         :param row: Row number.
         '''
-        # invoke base class method
-        Item.generate_to(self, worksheet, row)
+        super(ItemImage, self).generate_to(worksheet, row)
 
         embedded = False
         fmt = self.generator.formats
@@ -351,7 +350,7 @@ class ItemText(Item):
 
         Delegates to base class constructor.
         '''
-        Item.__init__(self, generator, subtopic)
+        super(ItemText, self).__init__(generator, subtopic)
 
     def generate_to(self, worksheet, row):
         '''Generate row report.
@@ -365,15 +364,23 @@ class ItemText(Item):
         :param row: Row number.
 
         '''
-        Item.generate_to(self, worksheet, row)
+        super(ItemText, self).generate_to(worksheet, row)
 
         fmt = self.generator.formats
         worksheet.write(row, 3, "text", fmt['type_text'])
-        worksheet.write(row, 4, self.data, fmt['default'])
+        worksheet.write(row, 4, uni(self.data), fmt['default'])
 
 
 class ItemManual(ItemText):
     pass
+
+
+def uni(t):
+    if t is None:
+        return None
+    if isinstance(t, unicode):
+        return t
+    return unicode(t, 'utf-8')
 
 
 Item.constructors = {

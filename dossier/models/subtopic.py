@@ -4,7 +4,6 @@ import base64
 import re
 
 from dossier.fc import StringCounter
-import dossier.web as web
 
 
 def subtopics(folders, folder_id, subfolder_id, ann_id=None):
@@ -23,7 +22,7 @@ def subtopics(folders, folder_id, subfolder_id, ann_id=None):
     :param str subfolder_id: Subfolder id
     :param str ann_id: Username
     :rtype: generator of
-            ``(content_id, subtopic_id, subtopic_type, data)``
+            ``(content_id, subtopic_id, url, subtopic_type, data)``
     '''
     # This code will be changed soon. In essence, it implements the
     # convention established in SortingDesk for storing subtopic data.
@@ -44,7 +43,7 @@ def subtopics(folders, folder_id, subfolder_id, ann_id=None):
             except KeyError:
                 # We have a dangling label folks!
                 continue
-            yield cid, fc['meta_url'], subid, subtopic_type(subid), data
+            yield cid, subid, fc['meta_url'], subtopic_type(subid), data
 
 
 def typed_subtopic_data(fc, subid):
