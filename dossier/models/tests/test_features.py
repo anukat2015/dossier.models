@@ -24,7 +24,7 @@ def test_image_urls():
 <img src="http://example.com/My%20Image.jpg">
 '''
     assert StringCounter(features.image_urls(html)) == StringCounter({
-        'http://example.com/My%20Image.jpg': 2,
+        'http://example.com/My Image.jpg': 2,
     })
 
 
