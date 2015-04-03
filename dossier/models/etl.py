@@ -53,11 +53,11 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     if isinstance(html, str):
         html = unicode(html, 'utf-8')
     timestamp = timestamp or int(time.time() * 1000)
-    other_features = other_features or []
-    url = url or u''
+    other_features = other_features or {}
+    url = url or ''
 
     clean_html = make_clean_html(html.encode('utf-8')).decode('utf-8')
-    clean_vis = make_clean_visible(html.encode('utf-8')).decode('utf-8')
+    clean_vis = make_clean_visible(clean_html.encode('utf-8')).decode('utf-8')
 
     fc = FeatureCollection()
     fc[u'meta_raw'] = html
