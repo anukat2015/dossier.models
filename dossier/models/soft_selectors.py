@@ -180,6 +180,8 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
                               for tok in ngram_tuple])
             if stop_count > num_tokens / 1.5:
                 continue
+            if len(set(ngram_tuple)) < len(ngram_tuple) / 2:
+                continue
             ngrams_strings.append(' '.join(ngram_tuple))
         corpus.append(ngrams_strings)
     return corpus
