@@ -27,16 +27,65 @@ logger = logging.getLogger(__name__)
 stop_words = many_stop_words.get_stop_words()
 
 
-def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
-                        max_num_tokens='20', peak_score_delta='0.01',
+# def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
+#                         max_num_tokens='20', peak_score_delta='0.01',
+#                         filter_punctuation='0',
+#                         **kwargs):
+#     '''External interface for dossier.models.soft_selectors.
+
+#     This at scans through `num_tokens` values between
+#     `start_num_tokens` and `max_num_tokens` and calls
+#     `find_soft_selectors_at_n` looking for results in which the top
+#     result is more than `peak_score_delta` above the second result.
+
+#     All of the params can be passed from URL parameters, in which
+#     case they can be strings and this function will type cast them
+#     appropriately.
+#     '''
+#     start_num_tokens = int(start_num_tokens)
+#     max_num_tokens = int(max_num_tokens)
+#     peak_score_delta = float(peak_score_delta)
+#     filter_punctuation = bool(int(filter_punctuation))
+
+#     if not ids_and_clean_visible:
+#         logger.info('find_soft_selectors called with no ids_and_clean_visible')
+#         return []
+
+#     best_score_overall = 0
+#     peaked_results = []
+#     for num_tokens in range(start_num_tokens, max_num_tokens + 1):
+#         results = find_soft_selectors_at_n(
+#             ids_and_clean_visible, num_tokens, filter_punctuation)
+#         if len(results) < 2:
+#             logger.info('not enough soft selectors for num_tokens %d',
+#                         num_tokens)
+#             continue
+#         best_score = results[0]['score']
+#         second_best_score = results[1]['score']
+#         logger.info(
+#             'num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' %
+#             (
+#                 num_tokens, best_score, second_best_score,
+#                 (best_score - second_best_score),
+#             ))
+#         if second_best_score + peak_score_delta < best_score:
+#             peaked_results.append(results[0])
+
+#         if best_score > best_score_overall:
+#             best_score_overall = best_score
+
+#     peaked_results.sort(key=lambda r: r['score'], reverse=True)
+#     return peaked_results
+
+def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
+                        max_num_tokens='50', 
                         filter_punctuation='0',
                         **kwargs):
     '''External interface for dossier.models.soft_selectors.
 
     This at scans through `num_tokens` values between
     `start_num_tokens` and `max_num_tokens` and calls
-    `find_soft_selectors_at_n` looking for results in which the top
-    result is more than `peak_score_delta` above the second result.
+    `find_soft_selectors_at_n` looking for results
 
     All of the params can be passed from URL parameters, in which
     case they can be strings and this function will type cast them
@@ -44,7 +93,6 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
     '''
     start_num_tokens = int(start_num_tokens)
     max_num_tokens = int(max_num_tokens)
-    peak_score_delta = float(peak_score_delta)
     filter_punctuation = bool(int(filter_punctuation))
 
     if not ids_and_clean_visible:
@@ -52,31 +100,107 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
         return []
 
     best_score_overall = 0
-    peaked_results = []
+    current_results = [] ## results from current n
+    previous_results = [] ## previous results from last n
+    overall_results = [] ## overall results to return
+
     for num_tokens in range(start_num_tokens, max_num_tokens + 1):
-        results = find_soft_selectors_at_n(
+
+        ## update this here
+        previous_results = current_results
+
+        results_at_n = find_soft_selectors_at_n(
             ids_and_clean_visible, num_tokens, filter_punctuation)
-        if len(results) < 2:
-            logger.info('not enough soft selectors for num_tokens %d',
-                        num_tokens)
-            continue
-        best_score = results[0]['score']
-        second_best_score = results[1]['score']
-        logger.info(
-            'num_tokens=%d, best_score(%f) - second_best_score(%f)=%f' %
-            (
-                num_tokens, best_score, second_best_score,
-                (best_score - second_best_score),
-            ))
-        if second_best_score + peak_score_delta < best_score:
-            peaked_results.append(results[0])
 
-        if best_score > best_score_overall:
-            best_score_overall = best_score
+        best_score = results_at_n[0]['score']
+        second_best_score = 0
 
-    peaked_results.sort(key=lambda r: r['score'], reverse=True)
-    return peaked_results
+        ## i.e. the initial condition is they all have the same score
+        idx_at_second = len(results_at_n) 
 
+        for idx, result in enumerate(results_at_n):
+            if result['score'] < best_score:
+                second_best_score = result['score'] 
+                idx_at_second = idx
+                break
+
+        # logger.info(
+        #     'num_tokens=%d, best_score(%f) - second_best_score(%f)=%f,' %
+        #         (
+        #             num_tokens, best_score, second_best_score,
+        #             (best_score - second_best_score)
+        #         )
+        # )
+
+        # logger.info('length of results at n = %d, idx_at_second=%d' %
+        #         (len(results_at_n), idx_at_second)
+        # )
+
+        # if second_best_score + peak_score_delta >= best_score:
+        #     logger.info('There is no peak. Continuing.')
+        #     continue
+
+        current_results = results_at_n[0:idx_at_second]
+
+
+        if num_tokens == 8:
+            for re in results_at_n:
+                logger.info('%s --- score: %d' % (re['phrase'], re['score']))
+
+        if previous_results == []:
+            logger.info('Previous results are empty. Continuing.')
+            continue 
+
+        ## now, the main idea is to figure out if any strings from previous
+        ## are substrings of those from current 
+        ## (with the scores fixed at the max for that subphrase). 
+        ## when they stop being substrings
+        ## then those are completed phrases and should be returned as a result
+
+        for prev_result in previous_results:
+
+            is_subbed_and_same_score = False
+
+            for curr_result in current_results:
+                if prev_result['phrase'] in curr_result['phrase'] and \
+                    prev_result['score'] == curr_result['score'] :
+
+                    is_subbed_and_same_score = True
+                    break
+
+            if not is_subbed_and_same_score: ## then it's a honest result
+                prev_result['n'] = num_tokens - 1
+
+                overall_results.append(prev_result)
+                # logger.info('just added: %s --- score: %f , n = %d, hits=%d' % 
+                #     (overall_results['phrase'], overall_results['score'], overall_results['n'], len(overall_results['hits']))
+                # )
+
+        if len(current_results) == 0:
+            ## we got them all
+            ## (we still had to collect the previous results)
+            ## that's why this break comes after the previous for loop
+            break
+
+
+    ## also add results from current_results at final n
+    for result in current_results:
+            result['n'] = num_tokens
+            overall_results.append(result)    
+
+    ## sort by score then by length
+    overall_results.sort(key=itemgetter('score', 'n'), reverse=True)
+
+
+
+
+    
+    logger.info('OVERALL RESULTS: %d' % len(overall_results))
+    for idx, result in enumerate(overall_results):
+        logger.info('%d. %s --- score: %f , n = %d, hits=%d' % 
+            (idx, result['phrase'], result['score'], result['n'], len(result['hits']))
+        )
+    return overall_results
 
 def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
                              filter_punctuation):
@@ -86,27 +210,35 @@ def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
     corpus_strings = make_ngram_corpus(
         corpus_clean_visibles, num_tokens, filter_punctuation)
 
+
     ## make dictionary
     dictionary = corpora.Dictionary(corpus_strings)
 
     ## make word vectors
     corpus = map(dictionary.doc2bow, corpus_strings)
 
-    ## train tfidf model
-    tfidf = models.TfidfModel(corpus)
+    # ## train tfidf model
+    # tfidf = models.TfidfModel(corpus)
 
-    ## transform coprus
-    corpus_tfidf = tfidf[corpus]
+    # ## transform coprus
+    # corpus_tfidf = tfidf[corpus]
+
+    ## ignore tfidf
+    corpus_tfidf = corpus
 
     ## sum up tf-idf across the entire corpus
     corpus_total = defaultdict(int)
     inverted_index = defaultdict(set)
     for doc_idx, doc in enumerate(corpus_tfidf):
         for word_id, score in doc:
-            corpus_total[word_id] += score
+            ## uncomment when doing tf idf
+            # corpus_total[word_id] += score
+            ## this way we only count once per doc
+            corpus_total[word_id] += 1
+
             inverted_index[word_id].add(corpus_cids[doc_idx])
 
-    ## order the phrases by tf-idf score across the documents
+    ## order the phrases by score across the documents
     corpus_ordered = sorted(
         corpus_total.items(), key=itemgetter(1), reverse=True)
 
@@ -174,13 +306,23 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
 
         ## make ngrams, attach to make strings
         ngrams_strings = list()
+
+        
         for ngram_tuple in ngrams(tokens, num_tokens):
-            ## score with many_stop_words and drop bad tuples
-            stop_count = sum([int(bool(tok.lower() in stop_words))
-                              for tok in ngram_tuple])
-            if stop_count > num_tokens / 1.5:
-                continue
+
+            # ## attempt to remove unwanted phrases
+            # ## score with many_stop_words and drop bad tuples
+            # stop_count = sum([int(bool(tok.lower() in stop_words))
+            #                   for tok in ngram_tuple])
+            # if stop_count > num_tokens / 1.5:
+            #     continue
+
+            ## this adds ngrams for the current doc
             ngrams_strings.append(' '.join(ngram_tuple))
+
+
+        ## this adds a list of all the ngrams from the current doc
+        ## to the corpus list
         corpus.append(ngrams_strings)
     return corpus
 
