@@ -68,6 +68,10 @@ Chrome's local storage.
 '''
 from __future__ import absolute_import, division, print_function
 
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 import logging
 import os.path as path
 import urllib
@@ -83,6 +87,7 @@ except ImportError:
 from dossier.fc import StringCounter
 from dossier.models import etl
 from dossier.models.pairwise import dissimilar, similar
+from dossier.models.report import ReportGenerator
 import dossier.web as web
 import dossier.web.config as config
 import dossier.web.routes as routes
@@ -106,6 +111,19 @@ def add_routes(app):
     @app.get('/static/<name:path>')
     def v1_static(name):
         return bottle.static_file(name, root=web_static_path)
+
+    @app.get('/dossier/v1/folder/<fid>/report')
+    def v1_folder_report(request, response, folders, store, fid):
+        response.headers['Content-Disposition'] = \
+            'attachment; filename="report-%s.xlsx"' % fid
+        response.headers['Content-Type'] = \
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        user = request.query.get('annotator_id')
+
+        gen = ReportGenerator(folders, web.Folders.id_to_name(fid), user=user)
+        body = StringIO()
+        gen.run(body)
+        return body.getvalue()
 
     @app.put('/dossier/v1/feature-collection/<cid>', json=True)
     def v1_fc_put(request, response, store, tfidf, cid):

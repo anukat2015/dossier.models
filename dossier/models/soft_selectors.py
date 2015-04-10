@@ -309,13 +309,16 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
 
         
         for ngram_tuple in ngrams(tokens, num_tokens):
-
             # ## attempt to remove unwanted phrases
-            # ## score with many_stop_words and drop bad tuples
+            ## score with many_stop_words and drop bad tuples
             # stop_count = sum([int(bool(tok.lower() in stop_words))
             #                   for tok in ngram_tuple])
             # if stop_count > num_tokens / 1.5:
             #     continue
+
+            ## remove ones with many repeated words
+            if len(set(ngram_tuple)) < len(ngram_tuple) / 2:
+                continue
 
             ## this adds ngrams for the current doc
             ngrams_strings.append(' '.join(ngram_tuple))

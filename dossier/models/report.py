@@ -16,7 +16,8 @@ import xlsxwriter
 
 from dossier.label import LabelStore
 from dossier.store import Store
-from dossier.models.subtopic import Folders
+from dossier.models.subtopic import subtopics
+import dossier.web as web
 import kvlayer
 import yakonfig
 
@@ -47,47 +48,53 @@ def main():
     label_store = factory.create(LabelStore)
 
     # Instantiate and run report generator.
-    ReportGenerator(Folders(store, label_store), args.output,
-                    args.folder, args.user).run(args.subfolder)
+    folders = web.Folders(store, label_store)
+    gen = ReportGenerator(folders, args.folder,
+                          subfolder_name=args.subfolder, user=args.user)
+    with open(args.output, 'wb+') as out:
+        gen.run(out)
 
 
-# Comments:
-class ReportGenerator:
-
+class ReportGenerator(object):
     '''Generates a report in Excel format.'''
 
-    def __init__(self, folders, output, folder, user=None):
+    def __init__(self, folders, folder_name, subfolder_name=None, user=None):
         '''Class constructor.
 
         :param folders: Reference to folder.Folders instance
-
-        :param output: string containing workbook file name, optionally
-        including relative or absolute path
-
         :param folder: folder name to generate report for
         :param subfolder: subfolder name; must be contained by folder and can
-        be None
+                          be None
         :param user: Generate report on data created by specified user.
         '''
-        self.folders, self.output = folders, output
-        self.folder = folder
-        self.fid = Folders.name_to_id(folder)
-        self.user = user
+        self.folders = folders
         self.workbook = None
         self.formats = {}
+        self.folder_name = folder_name
+        self.subfolder_name = subfolder_name
+        self.user = user
 
-    def run(self, subfolder=None):
-        '''Generate the report.'''
-        subfolder = subfolder
-        sid = None if subfolder is None else Folders.name_to_id(subfolder)
+    @property
+    def folder_id(self):
+        return web.Folders.name_to_id(self.folder_name)
 
+    @property
+    def subfolder_id(self):
+        return web.Folders.name_to_id(self.subfolder_name)
+
+    def run(self, output):
+        '''Generate the report to the given output.
+
+        :param output: writable file-like object or file path
+        '''
         # Ensure folder exists.
-        if not self.fid in self.folders.folders(self.user):
-            print("E: folder not found: %s" % self.folder, file=sys.stderr)
+        if self.folder_id not in self.folders.folders(self.user):
+            print("E: folder not found: %s" % self.folder_name,
+                  file=sys.stderr)
             return
 
         # Create workbook.
-        wb = self.workbook = xlsxwriter.Workbook(self.output)
+        wb = self.workbook = xlsxwriter.Workbook(output)
 
         # Create the different styles used by this report generator.
         self.formats['title'] = wb.add_format({'font_size': '18',
@@ -125,23 +132,21 @@ class ReportGenerator:
 
         # Generate report for a specific subfolder or *all* subfolders of
         # self.folder .
-        if sid is None:
+        if self.subfolder_id is None:
             self._generate_report_all()
         else:
-            self._generate_report_single(sid)
+            self._generate_report_single(self.subfolder_id)
 
         # done and outta here
         self.workbook.close()
 
     def _generate_report_all(self):
-        ''' Generate report for all subfolders contained by self.folder .
-
-        Private method.'''
+        '''Generate report for all subfolders contained by self.folder_id.'''
         assert self.workbook is not None
         count = 0
 
         # Do all subfolders
-        for sid in self.folders.subfolders(self.fid, self.user):
+        for sid in self.folders.subfolders(self.folder_id, self.user):
             count += 1
             self._generate_for_subfolder(sid)
 
@@ -163,8 +168,8 @@ class ReportGenerator:
         assert sid is not None
 
         # Ensure subfolder exists
-        if not sid in self.folders.subfolders(self.fid, self.user):
-            subfolder = Folders.id_to_name(sid)
+        if not sid in self.folders.subfolders(self.folder_id, self.user):
+            subfolder = web.Folders.id_to_name(sid)
             print("E: subfolder not found: %s" % subfolder, file=sys.stderr)
             return
 
@@ -177,11 +182,11 @@ class ReportGenerator:
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
-        name = self._sanitise_sheetname(Folders.id_to_name(sid))
+        name = self._sanitise_sheetname(uni(web.Folders.id_to_name(sid)))
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
-        ws.write("A2", "%s | %s" % (self.folder, name))
+        ws.write("A2", "%s | %s" % (uni(self.folder_name), name))
 
         # Column dimensions
         ws.set_column('A:A', 37)
@@ -202,7 +207,7 @@ class ReportGenerator:
         # TODO: we probably want to wrap the following in a try-catch block, in
         # case the call to folders.subtopics fails.
         row = 4
-        for i in self.folders.subtopics(self.fid, sid, self.user):
+        for i in subtopics(self.folders, self.folder_id, sid, self.user):
             Item.construct(self, i).generate_to(ws, row)
             row += 1
 
@@ -218,9 +223,9 @@ class ReportGenerator:
         return re.sub(r"[\[\]:*?/\\]", "_", sheetname[:31])
 
 
-class Item:
-
+class Item(object):
     ''' Base class of concrete items ItemText and ItemImage. '''
+
     @staticmethod
     def construct(generator, subtopic):
         '''Method constructor of Item-derived classes.
@@ -244,18 +249,17 @@ class Item:
 
     def __init__(self, generator, subtopic):
         self.generator = generator
-        self.content_id, self.meta_url, self.subtopic_id, \
+        self.content_id, self.subtopic_id, self.meta_url, \
             type, self.data = subtopic[0:5]
 
     def generate_to(self, worksheet, row):
         fmt = self.generator.formats
-        worksheet.write(row, 0, self.content_id, fmt['pre'])
-        worksheet.write(row, 1, self.meta_url, fmt['link'])
-        worksheet.write(row, 2, self.subtopic_id, fmt['pre'])
+        worksheet.write(row, 0, uni(self.content_id), fmt['pre'])
+        worksheet.write(row, 1, uni(self.meta_url), fmt['link'])
+        worksheet.write(row, 2, uni(self.subtopic_id), fmt['pre'])
 
 
 class ItemImage(Item):
-
     ''' Represents an image item for the purpose of report generation. '''
 
     def __init__(self, generator, subtopic):
@@ -264,7 +268,7 @@ class ItemImage(Item):
         Delegates to base class constructor.
 
         '''
-        Item.__init__(self, generator, subtopic)
+        super(ItemImage, self).__init__(generator, subtopic)
 
     def generate_to(self, worksheet, row):
         '''Generate row report.
@@ -277,8 +281,7 @@ class ItemImage(Item):
 
         :param row: Row number.
         '''
-        # invoke base class method
-        Item.generate_to(self, worksheet, row)
+        super(ItemImage, self).generate_to(worksheet, row)
 
         embedded = False
         fmt = self.generator.formats
@@ -340,7 +343,6 @@ class ItemImage(Item):
 
 
 class ItemText(Item):
-
     '''Represents a text snippet item for the purpose of report generation.'''
 
     def __init__(self, generator, subtopic):
@@ -348,7 +350,7 @@ class ItemText(Item):
 
         Delegates to base class constructor.
         '''
-        Item.__init__(self, generator, subtopic)
+        super(ItemText, self).__init__(generator, subtopic)
 
     def generate_to(self, worksheet, row):
         '''Generate row report.
@@ -362,15 +364,23 @@ class ItemText(Item):
         :param row: Row number.
 
         '''
-        Item.generate_to(self, worksheet, row)
+        super(ItemText, self).generate_to(worksheet, row)
 
         fmt = self.generator.formats
         worksheet.write(row, 3, "text", fmt['type_text'])
-        worksheet.write(row, 4, self.data, fmt['default'])
+        worksheet.write(row, 4, uni(self.data), fmt['default'])
 
 
 class ItemManual(ItemText):
     pass
+
+
+def uni(t):
+    if t is None:
+        return None
+    if isinstance(t, unicode):
+        return t
+    return unicode(t, 'utf-8')
 
 
 Item.constructors = {
