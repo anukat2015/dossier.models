@@ -61,7 +61,7 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='6',
         results_at_n = find_soft_selectors_at_n(
             ids_and_clean_visible, num_tokens, filter_punctuation)
         if len(results_at_n) == 0:
-            continue
+            break
 
         best_score = results_at_n[0]['score']
 
