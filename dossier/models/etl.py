@@ -70,8 +70,17 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
 
     add_feature(u'phone', features.phones(clean_vis))
     add_feature(u'email', features.emails(clean_vis))
-    add_feature(u'image_url', features.image_urls(clean_html))
     add_feature(u'bowNP', features.noun_phrases(cleanse(clean_vis)))
+
+    add_feature(u'image_url', features.image_urls(clean_html))
+    add_feature(u'a_url', features.a_urls(clean_html))
+
+    ## get parsed versions
+    fc[u'bo_img_url_path_dirs'] = features.path_dirs(fc[u'image_url'])
+    fc[u'bo_img_url_hostnames'] = features.host_names(fc[u'image_url'])
+    fc[u'bo_a_url_path_dirs'] = features.path_dirs(fc[u'a_url'])
+    fc[u'bo_a_url_hostnames'] = features.host_names(fc[u'a_url'])
+
     return fc
 
 
