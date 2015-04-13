@@ -101,3 +101,19 @@ def path_dirs(urls):
         for path_dir in filter(None, urlparse(url).path.split('/')):
             path_dirs[path_dir] += urls[url]
     return path_dirs
+
+def usernames(urls):
+    '''
+    Takes a StringCounter of normalized URL and attempts
+    to extract a username.
+    '''
+    usernames = StringCounter()
+    for url in urls:
+        get_next = False
+        for path_dir in filter(None, urlparse(url).path.split('/')):
+            if get_next:
+                get_next = False
+                usernames[path_dir] += urls[url]
+            if path_dir == 'user':
+                get_next = True
+    return usernames

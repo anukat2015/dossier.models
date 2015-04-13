@@ -75,11 +75,13 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     add_feature(u'image_url', features.image_urls(clean_html))
     add_feature(u'a_url', features.a_urls(clean_html))
 
-    ## get parsed versions
-    fc[u'bo_img_url_path_dirs'] = features.path_dirs(fc[u'image_url'])
-    fc[u'bo_img_url_hostnames'] = features.host_names(fc[u'image_url'])
-    fc[u'bo_a_url_path_dirs'] = features.path_dirs(fc[u'a_url'])
-    fc[u'bo_a_url_hostnames'] = features.host_names(fc[u'a_url'])
+    ## get parsed versions, extract usernames
+    fc[u'img_url_path_dirs'] = features.path_dirs(fc[u'image_url'])
+    fc[u'img_url_hostnames'] = features.host_names(fc[u'image_url'])
+    fc[u'img_url_usernames'] = features.usernames(fc[u'image_url'])
+    fc[u'a_url_path_dirs'] = features.path_dirs(fc[u'a_url'])
+    fc[u'a_url_hostnames'] = features.host_names(fc[u'a_url'])
+    fc[u'a_url_usernames'] = features.usernames(fc[u'a_url'])
 
     return fc
 

@@ -71,3 +71,19 @@ def test_path_dirs():
         'folder3': 3,
         'index.html': 3,
     })
+
+def test_usernames():
+    urls = StringCounter()
+    urls['http://www.example.com/user/folder3/index.html?source=dummy'] = 3
+    urls['http://www.example.com/user/myaccount'] = 2
+    urls['http://www.different.com/folder3'] = 4
+    urls['http://www.different.com/user/myaccount'] = 7
+    urls['http://www.also.com/user'] = 23
+    urls['http://www.also2.com/user/user'] = 1
+
+
+    assert features.usernames(urls) == StringCounter({
+        'myaccount': 9,
+        'folder3': 3,
+        'user': 1,
+    })
