@@ -49,7 +49,7 @@ setup(
         'streamcorpus-pipeline',
         'pytest',
         'pytest-diffeo >= 0.1.4',
-        'urlnorm',
+        'urlnorm >= 1.1.3',
         'xlsxwriter',
         'Pillow'
     ],
