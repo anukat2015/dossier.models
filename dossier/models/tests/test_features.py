@@ -80,9 +80,9 @@ def test_path_dirs():
         'index.html': 3,
     })
 
-@pytest.mark.parametrize(
-    ('url_or_path', 'username', 'count'),
-    [(r'http://www.example.com/user/folder3/index.html?source=dummy', 'folder3', 3),
+
+example_usernames_from_paths = [
+     (r'http://www.example.com/user/folder3/index.html?source=dummy', 'folder3', 3),
      (r'http://www.example.com/user/myaccount', 'myaccount', 2),
      (r'http://www.different.com/folder3', None, 4),
      (r'http://www.different.com/user/myaccount', 'myaccount', 7),
@@ -110,7 +110,12 @@ def test_path_dirs():
      (r'/Users/my_account$HOME', 'my_account', 5), # Mac OS X
      (r'/Users/my_account', 'my_account', 5), # Mac OS X
      (r'/data/media/myaccount', 'myaccount', 5) # Android
-     ])
+     ]
+
+@pytest.mark.parametrize(
+    ('url_or_path', 'username', 'count'),
+    example_usernames_from_paths
+)
 def test_usernames(url_or_path, username, count):
     urls = StringCounter()
     urls[url_or_path] += count
