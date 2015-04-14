@@ -9,7 +9,7 @@ from __future__ import absolute_import, division, print_function
 
 from itertools import imap
 import logging
-import re
+import regex as re
 import traceback
 
 from bs4 import BeautifulSoup
@@ -109,18 +109,27 @@ def path_dirs(urls):
             path_dirs[path_dir] += urls[url]
     return path_dirs
 
+
+path_prefixes = r'''user|users|Users|home|data/media|var/users|u01''' + \
+                r'''|Documents and Settings|WINNT\\Profiles'''
+
+username_re = re.compile(
+    r'^((?P<drive>[A-Za-z]):)?(/|\\)(%s)(/|\\)(?P<username>[^/\\$%%]+)' % path_prefixes
+)
+
 def usernames(urls):
-    '''
-    Takes a StringCounter of normalized URL and attempts
-    to extract a username.
+    '''Take an iterable of `urls` of normalized URL or file paths and
+    attempt to extract usernames.  Returns a list.
+
     '''
     usernames = StringCounter()
-    for url in urls:
-        get_next = False
-        for path_dir in filter(None, urlparse(url).path.split('/')):
-            if get_next:
-                get_next = False
-                usernames[path_dir] += urls[url]
-            if path_dir == 'user':
-                get_next = True
+    for url, count in urls.items():
+        uparse = urlparse(url)
+        path = uparse.path
+        hostname = uparse.hostname
+        m = username_re.match(path)
+        if m:
+            usernames[m.group('username')] += count
+        elif hostname in ['twitter.com', 'www.facebook.com']:
+            usernames[path.lstrip('/')] += count
     return usernames
