@@ -1,3 +1,10 @@
+'''``dossier.models.features.basic`` provides simple transforms that
+construct features.
+
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2012-2015 Diffeo, Inc.
+
+'''
 from __future__ import absolute_import, division, print_function
 
 from itertools import imap

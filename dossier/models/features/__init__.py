@@ -4,6 +4,9 @@ Feature extraction
 ``dossier.models.features`` provides some convenience functions for
 feature extraction.
 
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2012-2015 Diffeo, Inc.
+
 .. autofunction:: noun_phrases
 '''
 from dossier.models.features.basic import emails, image_urls, phones, a_urls
