@@ -1,5 +1,13 @@
+'''``dossier.models.features.basic`` provides simple transforms that
+construct features.
+
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2012-2015 Diffeo, Inc.
+
+'''
 from dossier.fc import StringCounter
 import dossier.models.features as features
+import pytest
 
 
 def test_extract_phones():
@@ -72,18 +80,19 @@ def test_path_dirs():
         'index.html': 3,
     })
 
-def test_usernames():
+@pytest.mark.parametrize(
+    ('url_or_path', 'username', 'count'),
+    [('http://www.example.com/user/folder3/index.html?source=dummy', 'folder3', 3),
+     ('http://www.example.com/user/myaccount', 'myaccount', 2),
+     ('http://www.different.com/folder3', None, 4),
+     ('http://www.different.com/user/myaccount', 'myaccount', 7),
+     ('http://www.also.com/user', None, 23),
+     ('http://www.also2.com/user/user', 'user', 1),
+     ])
+def test_usernames(url_or_path, username, count):
     urls = StringCounter()
-    urls['http://www.example.com/user/folder3/index.html?source=dummy'] = 3
-    urls['http://www.example.com/user/myaccount'] = 2
-    urls['http://www.different.com/folder3'] = 4
-    urls['http://www.different.com/user/myaccount'] = 7
-    urls['http://www.also.com/user'] = 23
-    urls['http://www.also2.com/user/user'] = 1
+    urls[url_or_path] += count
 
-
-    assert features.usernames(urls) == StringCounter({
-        'myaccount': 9,
-        'folder3': 3,
-        'user': 1,
-    })
+    if username is not None:
+        results = features.usernames(urls)
+        assert results == StringCounter({username: count})
