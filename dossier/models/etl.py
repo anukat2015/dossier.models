@@ -25,13 +25,8 @@ import urllib
 import zlib
 
 import cbor
-try:
-    from gensim import corpora, models
-    TFIDF = True
-except ImportError:
-    TFIDF = False
+from gensim import corpora, models
 import happybase
-from thrift.transport.TTransport import TTransportException
 
 from dossier.fc import FeatureCollection, FeatureCollectionChunk, StringCounter
 from dossier.store import Store
@@ -237,10 +232,6 @@ class App(yakonfig.cmd.ArgParseCmd):
                             'with the `dossier.etl tfidf` script.')
 
     def do_convert(self, args):
-        if not TFIDF:
-            print('"gensim" is required for computing TF-IDF.',
-                  file=sys.stderr)
-            sys.exit(1)
         print('Loading TF-IDF model...')
         tfidf = models.TfidfModel.load(args.tfidf_model_path)
         pool = multiprocessing.Pool(processes=args.processes)
@@ -282,10 +273,6 @@ class App(yakonfig.cmd.ArgParseCmd):
                        help='The file path to write the tfidf model to.')
 
     def do_tfidf(self, args):
-        if not TFIDF:
-            print('"gensim" is required for computing TF-IDF.',
-                  file=sys.stderr)
-            sys.exit(1)
         conn = happybase.Connection(host=args.host, port=args.port,
                                     table_prefix=args.table_prefix)
         t = conn.table('artifact')
