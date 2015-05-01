@@ -46,8 +46,7 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
             fc[name] = StringCounter()
         fc[name] += StringCounter(xs)
 
-    if isinstance(html, str):
-        html = unicode(html, 'utf-8')
+    html = uni(html)
     timestamp = timestamp or int(time.time() * 1000)
     other_features = other_features or {}
     url = url or ''
@@ -60,7 +59,7 @@ def html_to_fc(html, url=None, timestamp=None, other_features=None):
     fc[u'meta_clean_html'] = clean_html
     fc[u'meta_clean_visible'] = clean_vis
     fc[u'meta_timestamp'] = unicode(timestamp)
-    fc[u'meta_url'] = unicode(url, 'utf-8')
+    fc[u'meta_url'] = uni(url)
 
     add_feature(u'phone', features.phones(clean_vis))
     add_feature(u'email', features.emails(clean_vis))
@@ -88,3 +87,9 @@ def add_sip_to_fc(fc, tfidf, limit=40):
         return
     sips = features.sip_noun_phrases(tfidf, fc['bowNP'].keys(), limit=limit)
     fc[u'bowNP_sip'] = StringCounter(sips)
+
+
+def uni(s):
+    if isinstance(s, str):
+        return unicode(s, 'utf-8')
+    return s

@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 from collections import defaultdict
-from itertools import imap
 import re
 import traceback
 import sys
@@ -19,8 +18,7 @@ class Ads(ETL):
         self.conn = happybase.Connect(host=host, port=port,
                                       table_prefix=table_prefix)
 
-    def cids_and_fcs(self, start, end, limit=5, pool=None):
-        mapper = imap if pool is None else pool.imap
+    def cids_and_fcs(self, mapper, start, end, limit=5):
         return mapper(row_to_content_obj,
                       get_artifact_rows(self.conn, limit=limit,
                                         start_key=start, end_key=end))

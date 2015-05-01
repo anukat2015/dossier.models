@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+from itertools import imap
 import multiprocessing
 import sys
 
@@ -21,6 +22,8 @@ def batch_progress(cids_and_fcs, add, limit=5, batch_size=100):
         print(*args, **kwargs)
         sys.stdout.flush()
 
+    total = 'all' if limit is None else str(limit)
+    status('0 of %s done' % total)
     batch = []
     for i, (cid, fc) in enumerate(cids_and_fcs, 1):
         if fc is None:
@@ -79,11 +82,19 @@ class App(yakonfig.cmd.ArgParseCmd):
                 self.store.put(cids_and_fcs)
         return add
 
+    def get_mapper(self, args):
+        cpus = getattr(args, 'processes', 1)
+        if cpus == 1:
+            return imap
+        else:
+            pool = multiprocessing.Pool(processes=cpus)
+            return pool.imap
+
     def args_etl_ads(self, p):
         p.add_argument('--host', default='localhost')
         p.add_argument('--port', default=9090, type=int)
         p.add_argument('--table-prefix', default='')
-        p.add_argument('--limit', default=5, type=int)
+        p.add_argument('--limit', default=None, type=int)
         p.add_argument('--batch-size', default=1000, type=int)
         p.add_argument('--start', default=None, type=str)
         p.add_argument('--stop', default=None, type=str)
@@ -96,20 +107,22 @@ class App(yakonfig.cmd.ArgParseCmd):
 
     def do_etl_ads(self, args):
         if args.tfidf is not None:
-            self.tfidf = models.TfidfModel.load(args.tfidf_model_path)
-
-        pool = multiprocessing.Pool(processes=args.processes)
+            self.tfidf = models.TfidfModel.load(args.tfidf)
         etl = Ads(args.host, args.port, table_prefix=args.table_prefix)
-        gen = etl.cids_and_fcs(args.start, args.stop, limit=args.limit or None,
-                               pool=pool)
+        gen = etl.cids_and_fcs(self.get_mapper(args), args.start, args.stop,
+                               limit=args.limit)
         self.etl(args, etl, gen)
 
     def args_etl_scrapy(self, p):
         p.add_argument('-p', '--processes',
                        default=multiprocessing.cpu_count(), type=int)
         p.add_argument('--batch-size', default=1000, type=int)
-        p.add_argument('--limit', default=5, type=int)
+        p.add_argument('--limit', default=None, type=int)
         p.add_argument('-o', '--output', default=None)
+        p.add_argument('--url-prefix', default=None,
+                       help='Override the URL prefix to use when fixing '
+                            'relative URLs. When omitted, detect '
+                            'automatically.')
         p.add_argument('--tfidf', default=None, type=str,
                        help='Path to TF-IDF background model. Can be '
                             'generated with the `dossier.etl tfidf` script.')
@@ -118,17 +131,21 @@ class App(yakonfig.cmd.ArgParseCmd):
 
     def do_etl_scrapy(self, args):
         if args.tfidf is not None:
-            self.tfidf = models.TfidfModel.load(args.tfidf_model_path)
+            self.tfidf = models.TfidfModel.load(args.tfidf)
 
-        pool = multiprocessing.Pool(processes=args.processes)
-        etl = Scrapy(open(args.input))
-        gen = etl.cids_and_fcs(limit=args.limit or None, pool=pool)
+        url_prefix = args.url_prefix
+        if url_prefix is None:
+            url_prefix = Scrapy.detect_url_prefix(open(args.input))
+            if url_prefix is not None:
+                print('Auto-detected URL prefix:', url_prefix)
+        etl = Scrapy(open(args.input), url_prefix=url_prefix)
+        gen = etl.cids_and_fcs(self.get_mapper(args), limit=args.limit)
         self.etl(args, etl, gen)
 
     def etl(self, args, etl, gen):
         add = self.get_output_accumulator(args.output)
         try:
-            batch_progress(gen, add, limit=args.limit or None,
+            batch_progress(gen, add, limit=args.limit,
                            batch_size=args.batch_size)
         finally:
             self.done()

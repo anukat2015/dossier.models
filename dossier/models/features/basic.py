@@ -61,6 +61,7 @@ def image_urls(html):
             traceback.print_exc()
             continue
 
+
 def a_urls(html):
     '''
     return normalized urls found in the 'a' tag
@@ -86,21 +87,21 @@ def host_names(urls):
     Takes a StringCounter of normalized URL and parses their hostnames
 
     N.B. this assumes that absolute URLs will begin with
-    
+
     http://
 
-    in order to accurately resolve the host name. 
+    in order to accurately resolve the host name.
     Relative URLs will not have host names.
     '''
     host_names = StringCounter()
     for url in urls:
-        host_names[urlparse(url).netloc] += urls[url] 
+        host_names[urlparse(url).netloc] += urls[url]
     return host_names
 
 def path_dirs(urls):
     '''
     Takes a StringCounter of normalized URL and parses them into
-    a list of path directories. The file name is 
+    a list of path directories. The file name is
     included in the path directory list.
     '''
     path_dirs = StringCounter()
