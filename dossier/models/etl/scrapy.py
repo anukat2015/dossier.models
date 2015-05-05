@@ -48,7 +48,7 @@ class Scrapy(ETL):
                 urels.add(url.lstrip('.'))
 
         uabss, urels = set(), set()
-        for row in imap(json.loads, filelike):
+        for row in ifilter(None, imap(json_maybe_loads, filelike)):
             if row.get('_type') == 'ForumPostItem':
                 add_url(row.get('thread_link'))
                 add_url(row.get('author', {}).get('link'))
@@ -60,7 +60,7 @@ class Scrapy(ETL):
         return None
 
     def __init__(self, filelike, url_prefix=None):
-        self.rows = imap(json.loads, filelike)
+        self.rows = ifilter(None, imap(json_maybe_loads, filelike))
         self.url_prefix = url_prefix
 
     def cids_and_fcs(self, mapper, limit=5):
@@ -73,7 +73,8 @@ class Scrapy(ETL):
             if n not in post['author']:
                 continue
             post['author'][n] = self.sanitize_url(post['author'][n])
-        post['thread_link'] = self.sanitize_url(post['thread_link'])
+        if 'thread_link' in post:
+            post['thread_link'] = self.sanitize_url(post['thread_link'])
         return post
 
     def sanitize_url(self, url):
@@ -127,16 +128,9 @@ def forum_post_timestamp(row):
     return str(int(row['created_at']) / 1000)
 
 
-def as_json(v):
-    if v is not None and len(v) > 0:
-        try:
-            return json.loads(v)
-        except ValueError:
-            return {}
-    return {}
-
-
 def urlquote(s):
+    if isinstance(s, unicode):
+        s = s.encode('utf-8')
     return urllib.quote(s, safe='~')
 
 
@@ -151,3 +145,13 @@ def uni(s):
     if isinstance(s, str):
         return unicode(s, 'utf-8')
     return s
+
+
+def json_maybe_loads(s):
+    try:
+        d = json.loads(s)
+    except:
+        return None
+    if 'thread_link' not in d:
+        return None
+    return d

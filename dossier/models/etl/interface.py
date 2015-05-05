@@ -91,5 +91,8 @@ def add_sip_to_fc(fc, tfidf, limit=40):
 
 def uni(s):
     if isinstance(s, str):
-        return unicode(s, 'utf-8')
+        try:
+            return unicode(s, 'utf-8')
+        except UnicodeDecodeError:
+            return unicode(s, 'latin-1')
     return s

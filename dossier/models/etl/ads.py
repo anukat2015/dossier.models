@@ -15,13 +15,13 @@ from dossier.fc import StringCounter
 
 class Ads(ETL):
     def __init__(self, host, port, table_prefix=''):
-        self.conn = happybase.Connect(host=host, port=port,
-                                      table_prefix=table_prefix)
+        self.conn = happybase.Connection(host=host, port=port,
+                                         table_prefix=table_prefix)
 
     def cids_and_fcs(self, mapper, start, end, limit=5):
         return mapper(row_to_content_obj,
                       get_artifact_rows(self.conn, limit=limit,
-                                        start_key=start, end_key=end))
+                                        start_key=start, stop_key=end))
 
 
 def row_to_content_obj(key_row):
@@ -48,7 +48,7 @@ def row_to_content_obj(key_row):
     except:
         fc = None
         print('Could not create FC for %s:' % cid, file=sys.stderr)
-        print(traceback.format_exc())
+        print(traceback.format_exc(), file=sys.stderr)
     return cid, fc
 
 

@@ -9,9 +9,13 @@ from gensim import models
 
 from dossier.fc import FeatureCollectionChunk
 from dossier.store import Store
+from dossier.store.store import fc_dumps
 from dossier.models.etl import Ads, Scrapy, add_sip_to_fc
 import kvlayer
 import yakonfig
+
+
+HBASE_MAX_KEY_VALUE_SIZE = 10 * 1024 * 1024 - 100
 
 
 def batch_progress(cids_and_fcs, add, limit=5, batch_size=100):
@@ -25,23 +29,34 @@ def batch_progress(cids_and_fcs, add, limit=5, batch_size=100):
     total = 'all' if limit is None else str(limit)
     status('0 of %s done' % total)
     batch = []
+    last_cid = None
     for i, (cid, fc) in enumerate(cids_and_fcs, 1):
         if fc is None:
             continue
+        # Since we can restart the scanner, we may end up regenerating
+        # FCs for the same key in the same batch. This results in
+        # undefined behavior in kvlayer.
         if not any(cid == cid2 for cid2, _ in batch):
-            # Since we can restart the scanner, we may end up regenerating
-            # FCs for the same key in the same batch. This results in
-            # undefined behavior in kvlayer.
-            batch.append((cid, fc))
+            # HBase doesn't allow more than 10MB for any particular key/value.
+            # This is supposedly configurable, but it's unclear how to
+            # configure it with happybase.
+            if data_size(cid, fc) <= HBASE_MAX_KEY_VALUE_SIZE:
+                batch.append((cid, fc))
 
         if len(batch) >= batch_size:
             add(batch)
+            last_cid = batch[-1][0]
             batch = []
         if i % 100 == 0:
-            status('%d of %s done'
-                   % (i, 'all' if limit is None else str(limit)))
+            status('%d of %s done (last id: %r)'
+                   % (i, 'all' if limit is None else str(limit), last_cid))
     if len(batch) > 0:
         add(batch)
+    status('done')
+
+
+def data_size(cid, fc):
+    return len(cid) + len(fc_dumps(fc))
 
 
 class App(yakonfig.cmd.ArgParseCmd):

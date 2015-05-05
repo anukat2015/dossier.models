@@ -51,15 +51,7 @@ def image_urls(html):
             src = node['src']
         except KeyError:
             continue
-        try:
-            yield urlnorm.norm(src)
-        except urlnorm.InvalidUrl:
-            # Happens when the URL is relative. Call path normalization
-            # directly.
-            yield urlnorm.norm_path('', src)
-        except:
-            traceback.print_exc()
-            continue
+        yield norm_url(src)
 
 
 def a_urls(html):
@@ -72,15 +64,8 @@ def a_urls(html):
             href = node['href']
         except KeyError:
             continue
-        try:
-            yield urlnorm.norm(href)
-        except urlnorm.InvalidUrl:
-            # Happens when the URL is relative. Call path normalization
-            # directly.
-            yield urlnorm.norm_path('', href)
-        except:
-            traceback.print_exc()
-            continue
+        yield norm_url(href)
+
 
 def host_names(urls):
     '''
@@ -97,6 +82,7 @@ def host_names(urls):
     for url in urls:
         host_names[urlparse(url).netloc] += urls[url]
     return host_names
+
 
 def path_dirs(urls):
     '''
@@ -134,3 +120,24 @@ def usernames(urls):
         elif hostname in ['twitter.com', 'www.facebook.com']:
             usernames[path.lstrip('/')] += count
     return usernames
+
+
+def norm_url(url):
+    url = uni(url).encode('utf-8')
+    try:
+        return urlnorm.norm(url)
+    except urlnorm.InvalidUrl:
+        # Happens when the URL is relative. Call path normalization directly.
+        return urlnorm.norm_path('', url)
+    except:
+        traceback.print_exc()
+    return None
+
+
+def uni(s):
+    if not isinstance(s, unicode):
+        try:
+            return s.decode('utf-8')
+        except UnicodeDecodeError:
+            return s.decode('latin-1')
+    return s
