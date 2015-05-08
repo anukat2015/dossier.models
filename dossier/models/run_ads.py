@@ -82,7 +82,7 @@ class App(yakonfig.cmd.ArgParseCmd):
         p.add_argument('--host', default='localhost')
         p.add_argument('--port', default=9090, type=int)
         p.add_argument('--table-prefix', default='')
-        p.add_argument('--limit', default=100, type=int)
+        p.add_argument('--limit', default=None, type=int)
 
     def do_ids(self, args):
         conn = happybase.Connection(host=args.host, port=args.port,
