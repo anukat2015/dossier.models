@@ -8,6 +8,7 @@ import zlib
 
 import cbor
 import happybase
+import happybase.hbase.ttypes as ttypes
 
 from dossier.models.etl.interface import ETL, html_to_fc, mk_content_id
 from dossier.fc import StringCounter
@@ -15,13 +16,43 @@ from dossier.fc import StringCounter
 
 class Ads(ETL):
     def __init__(self, host, port, table_prefix=''):
-        self.conn = happybase.Connection(host=host, port=port,
-                                         table_prefix=table_prefix)
+        self.host = host
+        self.port = port
+        self.table_prefix = table_prefix
+        self.last_key = None
+
+    def get_conn(self):
+        return happybase.Connection(host=self.host, port=self.port,
+                                    table_prefix=self.table_prefix)
 
     def cids_and_fcs(self, mapper, start, end, limit=5):
         return mapper(row_to_content_obj,
-                      get_artifact_rows(self.conn, limit=limit,
-                                        start_key=start, stop_key=end))
+                      self.get_artifact_rows(limit=limit,
+                                             start_key=start, stop_key=end))
+
+    def get_artifact_rows(self, limit=5, start_key=None, stop_key=None):
+        while True:
+            try:
+                scanner = self.get_scanner(limit=limit,
+                                           start_key=start_key,
+                                           stop_key=stop_key)
+                for key, data in scanner:
+                    if key == self.last_key:
+                        # Don't re-process troublesome keys.
+                        continue
+                    self.last_key = key
+                    yield key, unpack_artifact_row(data)
+                break
+            except ttypes.IOError:
+                # Die HBase, die!
+                continue
+
+    def get_scanner(self, limit=5, start_key=None, stop_key=None):
+        if self.last_key is not None:
+            start_key = self.last_key
+        t = self.get_conn().table('artifact')
+        return t.scan(row_start=start_key, row_stop=stop_key,
+                      limit=limit, batch_size=20)
 
 
 def row_to_content_obj(key_row):
@@ -50,14 +81,6 @@ def row_to_content_obj(key_row):
         print('Could not create FC for %s:' % cid, file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
     return cid, fc
-
-
-def get_artifact_rows(conn, limit=5, start_key=None, stop_key=None):
-    t = conn.table('artifact')
-    scanner = t.scan(row_start=start_key, row_stop=stop_key,
-                     limit=limit, batch_size=20)
-    for key, data in scanner:
-        yield key, unpack_artifact_row(data)
 
 
 def unpack_artifact_row(row):
