@@ -6,7 +6,7 @@ import re
 from dossier.fc import StringCounter
 
 
-def subtopics(folders, folder_id, subfolder_id, ann_id=None):
+def subtopics(store, folders, folder_id, subfolder_id, ann_id=None):
     '''Yields an unordered generator of subtopics in a subfolder.
 
     Each item of the generator is a 4-tuple of ``content_id``,
@@ -34,7 +34,7 @@ def subtopics(folders, folder_id, subfolder_id, ann_id=None):
     # require this code to make more FC fetches, but we should be able to
     # do it with one `store.get_many` call.
     items = folders.grouped_items(folder_id, subfolder_id, ann_id=ann_id)
-    fcs = {cid: fc for cid, fc in folders.store.get_many(items.keys())}
+    fcs = {cid: fc for cid, fc in store.get_many(items.keys())}
     for cid, subids in items.iteritems():
         fc = fcs[cid]
         for subid in subids:
@@ -56,7 +56,7 @@ def typed_subtopic_data(fc, subid):
     if ty == 'image':
         img_data = get_unicode_feature(fc, subid + '|data')
         img = re.sub('^data:image/[a-zA-Z]+;base64,', '', img_data)
-        img = base64.b64decode(img.decode('utf-8'))
+        img = base64.b64decode(img.encode('utf-8'))
         return data, img
     elif ty in ('text', 'manual'):
         return data

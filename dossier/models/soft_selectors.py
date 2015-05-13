@@ -121,10 +121,10 @@ def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
     overall_results.sort(key=itemgetter('score', 'n'), reverse=True)
 
     logger.info('OVERALL RESULTS: %d' % len(overall_results))
-    for idx, result in enumerate(overall_results):
-        logger.info('%d. %s --- score: %f , n = %d, hits=%d' %
-            (idx, result['phrase'], result['score'], result['n'], len(result['hits']))
-        )
+    # for idx, result in enumerate(overall_results):
+        # logger.info('%d. %s --- score: %f , n = %d, hits=%d' %
+            # (idx, result['phrase'], result['score'], result['n'], len(result['hits']))
+        # )
     return overall_results
 
 def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,

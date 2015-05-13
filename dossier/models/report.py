@@ -14,10 +14,9 @@ import re
 from PIL import Image
 import xlsxwriter
 
-from dossier.label import LabelStore
 from dossier.store import Store
+from dossier.models.folder import Folders
 from dossier.models.subtopic import subtopics
-import dossier.web as web
 import kvlayer
 import yakonfig
 
@@ -36,7 +35,7 @@ def main():
     p.add_argument('-o', '--output', required=True,
                    help='path to write Excel workbook file')
     p.add_argument(
-        '-u', '--user', default=None, help='user name (default=ALL)')
+        '-u', '--user', default='unknown', help='user name (default=ALL)')
     p.add_argument('folder', help='folder name')
     p.add_argument('subfolder', nargs='?', default=None,
                    help='subfolder name (default=ALL)')
@@ -45,11 +44,10 @@ def main():
     config = yakonfig.set_default_config([kvlayer], filename=args.config)
     factory = Factory(config)
     store = factory.create(Store)
-    label_store = factory.create(LabelStore)
 
     # Instantiate and run report generator.
-    folders = web.Folders(store, label_store)
-    gen = ReportGenerator(folders, args.folder,
+    folders = Folders(kvlayer.client())
+    gen = ReportGenerator(store, folders, args.folder,
                           subfolder_name=args.subfolder, user=args.user)
     with open(args.output, 'wb+') as out:
         gen.run(out)
@@ -58,7 +56,7 @@ def main():
 class ReportGenerator(object):
     '''Generates a report in Excel format.'''
 
-    def __init__(self, folders, folder_name, subfolder_name=None, user=None):
+    def __init__(self, store, folders, folder_name, subfolder_name=None, user='unknown'):
         '''Class constructor.
 
         :param folders: Reference to folder.Folders instance
@@ -67,6 +65,7 @@ class ReportGenerator(object):
                           be None
         :param user: Generate report on data created by specified user.
         '''
+        self.store = store
         self.folders = folders
         self.workbook = None
         self.formats = {}
@@ -76,11 +75,11 @@ class ReportGenerator(object):
 
     @property
     def folder_id(self):
-        return web.Folders.name_to_id(self.folder_name)
+        return Folders.name_to_id(self.folder_name)
 
     @property
     def subfolder_id(self):
-        return web.Folders.name_to_id(self.subfolder_name)
+        return Folders.name_to_id(self.subfolder_name)
 
     def run(self, output):
         '''Generate the report to the given output.
@@ -169,7 +168,7 @@ class ReportGenerator(object):
 
         # Ensure subfolder exists
         if not sid in self.folders.subfolders(self.folder_id, self.user):
-            subfolder = web.Folders.id_to_name(sid)
+            subfolder = Folders.id_to_name(sid)
             print("E: subfolder not found: %s" % subfolder, file=sys.stderr)
             return
 
@@ -182,7 +181,7 @@ class ReportGenerator(object):
         '''
         # TODO: the following assumes subfolder names can be constructed from a
         # subfolder id, which might not be the case in the future.
-        name = self._sanitise_sheetname(uni(web.Folders.id_to_name(sid)))
+        name = self._sanitise_sheetname(uni(Folders.id_to_name(sid)))
         ws = self.workbook.add_worksheet(name)
         fmt = self.formats
         ws.write("A1", "Dossier report", fmt['title'])
@@ -207,7 +206,7 @@ class ReportGenerator(object):
         # TODO: we probably want to wrap the following in a try-catch block, in
         # case the call to folders.subtopics fails.
         row = 4
-        for i in subtopics(self.folders, self.folder_id, sid, self.user):
+        for i in subtopics(self.store, self.folders, self.folder_id, sid, self.user):
             Item.construct(self, i).generate_to(ws, row)
             row += 1
 

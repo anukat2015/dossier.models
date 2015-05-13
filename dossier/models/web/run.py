@@ -86,6 +86,7 @@ except ImportError:
 
 from dossier.fc import StringCounter
 from dossier.models import etl
+from dossier.models.folder import Folders
 from dossier.models.pairwise import dissimilar, similar
 from dossier.models.report import ReportGenerator
 import dossier.web as web
@@ -113,14 +114,14 @@ def add_routes(app):
         return bottle.static_file(name, root=web_static_path)
 
     @app.get('/dossier/v1/folder/<fid>/report')
-    def v1_folder_report(request, response, folders, store, fid):
+    def v1_folder_report(request, response, kvlclient, store, fid):
         response.headers['Content-Disposition'] = \
             'attachment; filename="report-%s.xlsx"' % fid
         response.headers['Content-Type'] = \
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        user = request.query.get('annotator_id')
 
-        gen = ReportGenerator(folders, web.Folders.id_to_name(fid), user=user)
+        folders = Folders(kvlclient)
+        gen = ReportGenerator(store, folders, urllib.unquote(fid))
         body = StringIO()
         gen.run(body)
         return body.getvalue()
@@ -179,9 +180,10 @@ def soup_get(soup, sel, cont):
         return cont(v)
 
 
-def same_subfolder(store, label_store):
+def same_subfolder(kvlclient, label_store):
     '''Filter out results in the same subfolder.'''
-    folders = web.Folders(store, label_store)
+    folders = Folders(kvlclient)
+
     def init_filter(query_content_id):
         subfolders = folders.parent_subfolders(query_content_id)
         cids = set()
@@ -190,6 +192,7 @@ def same_subfolder(store, label_store):
                 cids.add(cid)
 
                 # Also add directly connected labels too.
+                print(cid, subid)
                 for lab in label_store.directly_connected((cid, subid)):
                     cids.add(lab.other(cid))
 

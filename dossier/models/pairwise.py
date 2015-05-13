@@ -24,7 +24,8 @@ from sklearn.linear_model import LogisticRegression
 
 from dossier.fc import StringCounter
 from dossier.label import CorefValue, Label
-from dossier.web import Folders, engine_index_scan, streaming_sample
+from dossier.web import engine_index_scan, streaming_sample
+from dossier.models.folder import Folders
 from dossier.models.soft_selectors import find_soft_selectors
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ class PairwiseFeatureLearner(object):
         '''
         self.store = store
         self.label_store = label_store
-        self.folders = Folders(store, label_store)
+        self.folders = Folders(store.kvl)
         self.query_content_id = content_id
         self.query_subtopic_id = subtopic_id
         self.query_fc = None
