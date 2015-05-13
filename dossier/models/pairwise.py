@@ -405,9 +405,8 @@ class PairwiseFeatureLearner(object):
         # subtopic connected component.
         # Don't impose a hard limit on positive labels. (There are probably
         # very few of them.)
-        logger.info('Getting subtopic connected component '
-                    '(with label expansion) for: %r', (cid, subid))
-        pos_labels = self.label_store.expand((cid, subid))
+        logger.info('Inferring positive labels for: %r', (cid, subid))
+        pos_labels = self.positive_subtopic_labels()
         logger.info('Inferring negative labels for: %r', (cid, subid))
         neg_labels = self.negative_subtopic_labels()
 
@@ -421,6 +420,31 @@ class PairwiseFeatureLearner(object):
         print('NEGATIVES\n', '\n'.join(map(repr, neg_sample)))
         print('-' * 79)
         return pos_sample + neg_sample
+
+    def positive_subtopic_labels(self):
+        cid, subid = self.query_content_id, self.query_subtopic_id
+        subfolders = list(self.folders.parent_subfolders((cid, subid)))
+
+        for fid, subfolder_id in subfolders:
+            for cid2, subid2 in self.folders.items(fid, subfolder_id):
+                # Since this item is in the same folder as our query, we
+                # consider it a positive example. But there's no explicit
+                # label for it, so manufacture one.
+                #
+                # TODO: Fix annotator id here. (We need to push annotator
+                # information down into the search engine; the rest is
+                # trivial.) ---AG
+                yield Label(cid, cid2,
+                            Folders.DEFAULT_ANNOTATOR_ID,
+                            CorefValue.Positive,
+                            subid, subid2)
+
+                # Sometimes the user will directly attach a positive label
+                # to an item in the folder. This will grab those.
+                for lab in self.label_store.directly_connected(cid2):
+                    if lab.value == CorefValue.Positive \
+                            and lab.subtopic_for(cid2) == subid2:
+                        yield lab
 
     def negative_subtopic_labels(self):
         cid, subid = self.query_content_id, self.query_subtopic_id
