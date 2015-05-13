@@ -406,7 +406,8 @@ class PairwiseFeatureLearner(object):
         # Don't impose a hard limit on positive labels. (There are probably
         # very few of them.)
         logger.info('Inferring positive labels for: %r', (cid, subid))
-        pos_labels = self.positive_subtopic_labels()
+        pos_labels = (self.label_store.expand((cid, subid))
+                      + list(self.positive_subtopic_labels()))
         logger.info('Inferring negative labels for: %r', (cid, subid))
         neg_labels = self.negative_subtopic_labels()
 
