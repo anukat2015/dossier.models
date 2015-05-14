@@ -6,10 +6,22 @@ from __future__ import absolute_import, division, print_function
 from collections import defaultdict
 
 import dossier.web as web
+import yakonfig
 
 
 class Folders(web.Folders):
     DEFAULT_ANNOTATOR_ID = 'unknown'
+
+    def __init__(self, *args, **kwargs):
+        # A horrible hack to create a new `Folders` instance with config.
+        try:
+            config = yakonfig.get_global_config('dossier.folders')
+            # For old configs.
+            if 'prefix' in config:
+                config['namespace'] = config.pop('prefix')
+        except KeyError:
+            config = {}
+        super(Folders, self).__init__(*args, **dict(config, **kwargs))
 
     @staticmethod
     def name_to_id(v):

@@ -120,7 +120,7 @@ def add_routes(app):
         response.headers['Content-Type'] = \
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-        folders = Folders(kvlclient)
+        folders = new_folders(kvlclient, request)
         gen = ReportGenerator(store, folders, urllib.unquote(fid))
         body = StringIO()
         gen.run(body)
@@ -178,6 +178,13 @@ def soup_get(soup, sel, cont):
         return u''
     else:
         return cont(v)
+
+
+def new_folders(kvlclient, request):
+    conf = {}
+    if 'annotator_id' in request.query:
+        conf['owner'] = request.query['annotator_id']
+    return Folders(kvlclient, **conf)
 
 
 def same_subfolder(kvlclient, label_store):
