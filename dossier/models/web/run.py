@@ -68,175 +68,89 @@ Chrome's local storage.
 '''
 from __future__ import absolute_import, division, print_function
 
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
+import argparse
 import logging
-import os.path as path
-import urllib
 
-from bs4 import BeautifulSoup
 import bottle
-try:
-    from gensim import models
-    TFIDF = True
-except ImportError:
-    TFIDF = False
+from gensim import models
 
-from dossier.fc import StringCounter
-from dossier.models import etl
+import dblogger
 from dossier.models.folder import Folders
 from dossier.models.pairwise import dissimilar, similar
-from dossier.models.report import ReportGenerator
+from dossier.models.web.routes import app as models_app
 import dossier.web as web
-import dossier.web.config as config
-import dossier.web.routes as routes
+import kvlayer
 import yakonfig
 
 
 logger = logging.getLogger(__name__)
-web_static_path = path.join(path.split(__file__)[0], 'static')
-bottle.TEMPLATE_PATH.insert(0, path.join(web_static_path, 'tpl'))
 
 
-def add_routes(app):
-    @app.get('/SortingQueue')
-    def example_sortingqueue():
-        return bottle.template('example-sortingqueue.html')
+class Config(web.Config):
+    def __init__(self, *args, **kwargs):
+        super(Config, self).__init__(*args, **kwargs)
+        self._tfidf = None
 
-    @app.get('/SortingDesk')
-    def example_sortingdesk():
-        return bottle.template('example-sortingdesk.html')
+    @property
+    def config_name(self):
+        return 'dossier.models'
 
-    @app.get('/static/<name:path>')
-    def v1_static(name):
-        return bottle.static_file(name, root=web_static_path)
-
-    @app.get('/dossier/v1/folder/<fid>/report')
-    def v1_folder_report(request, response, kvlclient, store, fid):
-        response.headers['Content-Disposition'] = \
-            'attachment; filename="report-%s.xlsx"' % fid
-        response.headers['Content-Type'] = \
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-        folders = new_folders(kvlclient, request)
-        gen = ReportGenerator(store, folders, urllib.unquote(fid))
-        body = StringIO()
-        gen.run(body)
-        return body.getvalue()
-
-    @app.put('/dossier/v1/feature-collection/<cid>', json=True)
-    def v1_fc_put(request, response, store, tfidf, cid):
-        '''Store a single feature collection.
-
-        The route for this endpoint is:
-        ``PUT /dossier/v1/feature-collections/<content_id>``.
-
-        ``content_id`` is the id to associate with the given feature
-        collection. The feature collection should be in the request
-        body serialized as JSON.
-
-        Alternatively, if the request's ``Content-type`` is
-        ``text/html``, then a feature collection is generated from the
-        HTML. The generated feature collection is then returned as a
-        JSON payload.
-
-        This endpoint returns status ``201`` upon successful
-        storage otherwise. An existing feature collection with id
-        ``content_id`` is overwritten.
-        '''
-        tfidf = tfidf or None
-        if request.headers.get('content-type', '').startswith('text/html'):
-            url = urllib.unquote(cid.split('|', 1)[1])
-            fc = create_fc_from_html(url, request.body.read(), tfidf=tfidf)
-            logger.info('created FC for "%r": %r', cid, fc)
-            store.put([(cid, fc)])
-            return routes.fc_to_json(fc)
+    def normalize_config(self, config):
+        super(Config, self).normalize_config(config)
+        try:
+            tfidf_path = self.config['tfidf_path']
+        except KeyError:
+            self._tfidf = False  # service available but absent
         else:
-            return routes.v1_fc_put(request, response, lambda x: x, store, cid)
+            self._tfidf = models.TfidfModel.load(tfidf_path)
+
+    @property
+    def tfidf(self):
+        return self._tfidf
 
 
-def create_fc_from_html(url, html, tfidf=None):
-    soup = BeautifulSoup(unicode(html, 'utf-8'))
-    title = soup_get(soup, 'title', lambda v: v.get_text())
-    body = soup_get(soup, 'body', lambda v: v.prettify())
-    fc = etl.html_to_fc(body, url=url, other_features={
-        u'title': title,
-        u'titleBow': StringCounter(title.split()),
-    })
-    if fc is None:
-        return None
-    if tfidf is not None:
-        etl.add_sip_to_fc(fc, tfidf)
-    return fc
+class same_subfolder(web.Filter):
+    def __init__(self, kvlclient, label_store):
+        super(same_subfolder, self).__init__()
+        self.kvl = kvlclient
+        self.label_store = label_store
+        self.folders = Folders(self.kvl)
 
-
-def soup_get(soup, sel, cont):
-    v = soup.find(sel)
-    if v is None:
-        return u''
-    else:
-        return cont(v)
-
-
-def new_folders(kvlclient, request):
-    conf = {}
-    if 'annotator_id' in request.query:
-        conf['owner'] = request.query['annotator_id']
-    return Folders(kvlclient, **conf)
-
-
-def same_subfolder(kvlclient, label_store):
-    '''Filter out results in the same subfolder.'''
-    folders = Folders(kvlclient)
-
-    def init_filter(query_content_id):
-        subfolders = folders.parent_subfolders(query_content_id)
+    def create_predicate(self):
+        subfolders = self.folders.parent_subfolders(self.query_content_id)
         cids = set()
         for folder_id, subfolder_id in subfolders:
-            for cid, subid in folders.items(folder_id, subfolder_id):
+            for cid, subid in self.folders.items(folder_id, subfolder_id):
                 cids.add(cid)
-
                 # Also add directly connected labels too.
-                print(cid, subid)
-                for lab in label_store.directly_connected((cid, subid)):
+                for lab in self.label_store.directly_connected((cid, subid)):
                     cids.add(lab.other(cid))
-
-        def p((content_id, fc)):
-            return content_id not in cids
-        return p
-    return init_filter
+        return lambda (content_id, fc): content_id not in cids
 
 
 def get_application():
-    engines = {
-        'dissimilar': dissimilar,
-        'similar': similar,
-        'random': web.engine_random,
-        'index_scan': web.engine_index_scan,
-    }
-    args, application = web.get_application(
-        routes=[add_routes], search_engines=engines,
-        filter_preds={'already_labeled': same_subfolder})
+    config = Config()
+    p = argparse.ArgumentParser(description='Run DossierStack web services.')
+    web.add_cli_arguments(p)
+    args = yakonfig.parse_args(p, [dblogger, config, kvlayer, yakonfig])
 
-    tfidf_model = False
-    if TFIDF:
-        try:
-            conf = yakonfig.get_global_config('dossier.models')
-            tfidf_path = conf['tfidf_path']
-            tfidf_model = models.TfidfModel.load(tfidf_path)
-        except KeyError:
-            pass
-    routes.app.install(
-        config.create_injector('tfidf', lambda: tfidf_model))
     bottle.debug(True)
-    return args, application
+    app = (web.WebBuilder()
+           .set_config(config)
+           .enable_cors()
+           .inject('tfidf', lambda: config.tfidf)
+           .add_routes(models_app)
+           .add_filter('already_labeled', same_subfolder)
+           .add_search_engine('similar', similar)
+           .add_search_engine('dissimilar', dissimilar)
+           .get_app())
+    return args, app
 
 
 def main():
-    args, application = get_application()
-    web.run_with_argv(args, application)
+    args, app = get_application()
+    app.run(server='wsgiref', host=args.host, port=args.port,
+            debug=args.bottle_debug, reloader=args.reload)
 
 
 if __name__ == '__main__':
