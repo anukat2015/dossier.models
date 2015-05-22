@@ -57,7 +57,7 @@ setup(
     zip_safe=False,
     entry_points={
         'console_scripts': [
-            'dossier.models = dossier.models.web.__main__:main',
+            'dossier.models = dossier.models.web.run:main',
             'dossier.models.soft_selectors = dossier.models.soft_selectors:main',
             'dossier.etl = dossier.models.etl:main',
         ],
