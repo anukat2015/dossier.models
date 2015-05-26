@@ -230,6 +230,7 @@ def get_application():
             pass
     routes.app.install(
         config.create_injector('tfidf', lambda: tfidf_model))
+    bottle.debug(True)
     return args, application
 
 
