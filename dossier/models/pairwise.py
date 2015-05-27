@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class similar(web.SearchEngine):
-    def __init__(self, web_config, store, label_store):
-        super(similar, self).__init__(web_config)
+    def __init__(self, store, label_store):
+        super(similar, self).__init__()
         self.store = store
         self.label_store = label_store
 
@@ -59,7 +59,7 @@ class similar(web.SearchEngine):
             candidate_probs = self.ranked_candidates(learner)
         except InsufficientTrainingData:
             logger.info('Falling back to plain index scan...')
-            return (web.engine_index_scan(self.config, self.store)
+            return (web.engine_index_scan(self.store)
                        .set_query_id(self.query_content_id)
                        .set_query_params(self.query_params)
                        .recommendations())

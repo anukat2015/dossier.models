@@ -16,7 +16,6 @@ from dossier.web import Folders
 
 from dossier.models import PairwiseFeatureLearner
 import dossier.models.pairwise as mod_pairwise
-from dossier.models.web.run import Config
 from dossier.models.tests import kvl, store, label_store
 
 
@@ -275,7 +274,7 @@ def test_search_engine(store, label_store):
     label_store.put(neg_label('q', 'b'))
     label_store.put(neg_label('q', 'c'))
 
-    results = (mod_pairwise.similar(Config(), store, label_store)
+    results = (mod_pairwise.similar(store, label_store)
                            .set_query_id('q')
                            .set_query_params({'limit': 1})
                            .recommendations())
@@ -297,7 +296,7 @@ def test_search_engine_limit(store, label_store):
     label_store.put(neg_label('q', 'a'))
     label_store.put(pos_label('q', 'b'))
 
-    results = (mod_pairwise.similar(Config(), store, label_store)
+    results = (mod_pairwise.similar(store, label_store)
                            .set_query_id('q')
                            .set_query_params({'limit': 2})
                            .recommendations())
@@ -308,7 +307,7 @@ def test_no_labels(store, label_store):
     '''Make sure the learner can handle zero labels.'''
     # Overwrite the query so we get some hits.
     store.put([('q', counter_fc({'x': 5, 'y': 90}))])
-    results = (mod_pairwise.similar(Config(), store, label_store)
+    results = (mod_pairwise.similar(store, label_store)
                            .set_query_id('q')
                            .set_query_params({'limit': 1})
                            .recommendations())
@@ -329,7 +328,7 @@ def test_only_positive_labels(store, label_store):
     # And assign a label to the query.
     label_store.put(pos_label('q', 'b'))
 
-    results = (mod_pairwise.similar(Config(), store, label_store)
+    results = (mod_pairwise.similar(store, label_store)
                            .set_query_id('q')
                            .set_query_params({'limit': 100})
                            .recommendations())
@@ -352,7 +351,7 @@ def test_only_negative_labels(store, label_store):
     # And assign a label to the query.
     label_store.put(neg_label('q', 'a'))
 
-    results = (mod_pairwise.similar(Config(), store, label_store)
+    results = (mod_pairwise.similar(store, label_store)
                            .set_query_id('q')
                            .set_query_params({'limit': 100})
                            .recommendations())
