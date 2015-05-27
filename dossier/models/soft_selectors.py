@@ -28,9 +28,7 @@ stop_words = many_stop_words.get_stop_words()
 
 
 def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
-                        max_num_tokens='20',
-                        filter_punctuation='0',
-                        **kwargs):
+                        max_num_tokens='20', filter_punctuation='0'):
     '''External interface for dossier.models.soft_selectors.
 
     This at scans through `num_tokens` values between

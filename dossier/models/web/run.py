@@ -109,22 +109,23 @@ class Config(web.Config):
         return self._tfidf
 
 
-def same_subfolder(kvlclient, label_store):
-    'Filter out results in the same subfolder.'
-    # This is the dossier.models version of "already labeled."
-    folders = Folders(kvlclient)
+class same_subfolder(web.Filter):
+    def __init__(self, kvlclient, label_store):
+        super(same_subfolder, self).__init__()
+        self.kvl = kvlclient
+        self.label_store = label_store
+        self.folders = Folders(self.kvl)
 
-    def init_filter(query_content_id):
-        subfolders = folders.parent_subfolders(query_content_id)
+    def create_predicate(self):
+        subfolders = self.folders.parent_subfolders(self.query_content_id)
         cids = set()
         for folder_id, subfolder_id in subfolders:
-            for cid, subid in folders.items(folder_id, subfolder_id):
+            for cid, subid in self.folders.items(folder_id, subfolder_id):
                 cids.add(cid)
                 # Also add directly connected labels too.
-                for lab in label_store.directly_connected((cid, subid)):
+                for lab in self.label_store.directly_connected((cid, subid)):
                     cids.add(lab.other(cid))
         return lambda (content_id, fc): content_id not in cids
-    return init_filter
 
 
 def get_application():

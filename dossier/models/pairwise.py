@@ -13,7 +13,7 @@ from __future__ import absolute_import, division, print_function
 import collections
 from itertools import ifilter, imap, islice
 import logging
-import operator
+from operator import itemgetter
 import math
 import re
 
@@ -24,87 +24,68 @@ from sklearn.linear_model import LogisticRegression
 
 from dossier.fc import StringCounter
 from dossier.label import CorefValue, Label
-from dossier.web import engine_index_scan, streaming_sample
+import dossier.web as web
 from dossier.models.folder import Folders
 from dossier.models.soft_selectors import find_soft_selectors
 
+
 logger = logging.getLogger(__name__)
 
-itget = operator.itemgetter
 
+class similar(web.SearchEngine):
+    def __init__(self, web_config, store, label_store):
+        super(similar, self).__init__(web_config)
+        self.store = store
+        self.label_store = label_store
 
-def similar(store, label_store):
-    '''An active learning search engine that returns similar results.
+    @property
+    def canopy_limit(self):
+        return str_to_max_int(self.query_params.get('canopy_limit'), 1000)
 
-    This satisfies the :class:`dossier.web.SearchEngine` interface.
+    @property
+    def label_limit(self):
+        return str_to_max_int(self.query_params.get('label_limit'), 1000)
 
-    In addition to the standard query inputs of ``content_id``,
-    ``filter_pred``, and ``limit``, this search engine has optional
-    parameters ``canopy_limit`` and ``label_limit`` that restrict
-    the number of candidates loaded for in-memory ranking and the
-    number of labels used for model training, respectively.
-    '''
-    return create_search_engine(store, label_store, similar=True)
+    def recommendations(self):
+        candidates = self.candidates()
+        return add_facets(add_soft_selectors(candidates))
 
-
-def dissimilar(store, label_store):
-    '''An active learning search engine that returns dissimilar results.
-
-    This satisfies the :class:`dossier.web.SearchEngine` interface.
-
-    In addition to the standard query inputs of ``content_id``,
-    ``filter_pred``, and ``limit``, this search engine has optional
-    parameters ``canopy_limit`` and ``label_limit`` that restrict
-    the number of candidates loaded for in-memory ranking and the
-    number of labels used for model training, respectively.
-    '''
-    return create_search_engine(store, label_store, similar=False)
-
-
-def create_search_engine(store, label_store, similar=True):
-    # N.B. `limit` caps the final results returned by the ranker.
-    # This is distinct from `canopy_limit` and `label_limit`, where
-    # they are used to keep resource use in check.
-    def _(content_id, filter_pred, limit,
-          canopy_limit=100, label_limit=100, subtopic_id=None,
-          **kwargs):
-        '''Creates an active learning search engine.
-
-        This is a helper function meant to satisfy the interface of
-        a search engine with a particular active learning model.
-        '''
-        # Are these maximums good enough? No idea. ---AG
-        canopy_limit = str_to_max_int(canopy_limit, 1000)
-        label_limit = str_to_max_int(label_limit, 1000)
-
+    def candidates(self):
         learner = PairwiseFeatureLearner(
-            store, label_store, content_id,
-            subtopic_id=subtopic_id,
-            canopy_limit=canopy_limit, label_limit=label_limit)
+            self.store, self.label_store, self.query_content_id,
+            subtopic_id=self.query_params.get('subtopic_id'),
+            canopy_limit=self.canopy_limit, label_limit=self.label_limit)
         try:
-            candidate_probs = sorted(
-                learner.probabilities(), reverse=similar, key=itget(1))
+            candidate_probs = self.ranked_candidates(learner)
         except InsufficientTrainingData:
             logger.info('Falling back to plain index scan...')
-            index_scan = engine_index_scan(store)
-            engine_result = index_scan(content_id, filter_pred, limit)
-            return add_facets(add_soft_selectors(engine_result, **kwargs))
+            return (web.engine_index_scan(self.config, self.store)
+                       .set_query_id(self.query_content_id)
+                       .set_query_params(self.query_params)
+                       .recommendations())
 
-        ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
+        predicate = self.create_filter_predicate()
+        ranked = ifilter(lambda t: predicate(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
-        top_results = list(islice(results, limit))
-        return add_facets(add_soft_selectors({'results': top_results}, **kwargs))
-    return _
+        return {'results': list(islice(results, self.result_limit))}
+
+    def ranked_candidates(self, learner):
+        return sorted(learner.probabilities(), reverse=True, key=itemgetter(1))
 
 
-def add_soft_selectors(engine_result, **kwargs):
+class dissimilar(similar):
+    def ranked_candidates(self, learner):
+        return sorted(learner.probabilities(), key=itemgetter(1))
+
+
+def add_soft_selectors(engine_result):
     results = engine_result['results']
     ids_and_clean, fcs = [], {}
     for r in results:
         ids_and_clean.append((r[0], r[1].get(u'meta_clean_visible', '')))
         fcs[r[0]] = r[1]
-    suggestions = find_soft_selectors(ids_and_clean, **kwargs)
+    suggestions = find_soft_selectors(ids_and_clean)
     for s in suggestions:
         for hit in s['hits']:
             hit['title'] = get_title(fcs[hit['content_id']],
@@ -113,7 +94,9 @@ def add_soft_selectors(engine_result, **kwargs):
 
 
 def add_facets(engine_result, facet_features=None):
-    '''construct a new result payload with `facets` added as a new
+    '''Adds facets to search results.
+
+    Construct a new result payload with `facets` added as a new
     top-level property that carries a mapping from unicode strings to
     lists of content_ids.  The `facet_features` lists the names of
     :class:`~dossier.fc.StringCounter` features in each result
@@ -122,7 +105,6 @@ def add_facets(engine_result, facet_features=None):
     `bowNP_sip`.
 
     The remainder of the facet logic is handled in the UI.
-
     '''
     if facet_features is None:
         facet_features = ['bowNP_sip']
@@ -352,8 +334,9 @@ class PairwiseFeatureLearner(object):
         return classifier.predict_proba(phi_dicts)[:,1]
 
     def canopy(self, limit=None):
-        ids = streaming_sample(self.canopy_ids(limit_hint=hard_limit(limit)),
-                               limit, hard_limit(limit))
+        ids = web.streaming_sample(
+            self.canopy_ids(limit_hint=hard_limit(limit)),
+            limit, hard_limit(limit))
         # I don't think it ever makes sense to include the query
         # as part of the candidate set.
         return filter(lambda (_, fc): fc is not None, self.store.get_many(ids))
@@ -435,9 +418,9 @@ class PairwiseFeatureLearner(object):
         logger.info('Inferring negative labels for: %r', (cid, subid))
         neg_labels = self.negative_subtopic_labels()
 
-        pos_sample = streaming_sample(
+        pos_sample = web.streaming_sample(
             pos_labels, limit, limit=hard_limit(limit))
-        neg_sample = streaming_sample(
+        neg_sample = web.streaming_sample(
             neg_labels, limit, limit=hard_limit(limit))
         print('-' * 79)
         print('POSITIVES\n', '\n'.join(map(repr, pos_sample)), '\n')
