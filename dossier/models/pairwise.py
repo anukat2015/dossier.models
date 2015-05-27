@@ -88,13 +88,13 @@ def create_search_engine(store, label_store, similar=True):
             logger.info('Falling back to plain index scan...')
             index_scan = engine_index_scan(store)
             engine_result = index_scan(content_id, filter_pred, limit)
-            return add_soft_selectors(engine_result, **kwargs)
+            return add_facets(add_soft_selectors(engine_result, **kwargs))
 
         ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
         top_results = list(islice(results, limit))
-        return add_soft_selectors({'results': top_results}, **kwargs)
+        return add_facets(add_soft_selectors({'results': top_results}, **kwargs))
     return _
 
 
@@ -110,6 +110,30 @@ def add_soft_selectors(engine_result, **kwargs):
             hit['title'] = get_title(fcs[hit['content_id']],
                                      default=s['phrase'])
     return dict(engine_result, **{'suggestions': suggestions})
+
+
+def add_facets(engine_result, facet_features=None):
+    '''construct a new result payload with `facets` added as a new
+    top-level property that carries a mapping from unicode strings to
+    lists of content_ids.  The `facet_features` lists the names of
+    :class:`~dossier.fc.StringCounter` features in each result
+    :class:`~dossier.fc.FeatureCollection` to harvest phrases for the
+    facets list.  If not specified, `facet_features` defaults to
+    `bowNP_sip`.
+
+    The remainder of the facet logic is handled in the UI.
+
+    '''
+    if facet_features is None:
+        facet_features = ['bowNP_sip']
+    phrases = collections.defaultdict(list)
+    for r in engine_result['results']:
+        cid = r[0]
+        fc = r[1]
+        for fname in facet_features:
+            for phrase in fc.get(u'bowNP_sip', []):
+                phrases[phrase].append(cid)
+    return dict(engine_result, **{'facets': dict(phrases)})
 
 
 def get_title(fc, default=None):

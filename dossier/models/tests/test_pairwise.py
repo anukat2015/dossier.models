@@ -10,7 +10,7 @@ from __future__ import absolute_import, division, print_function
 
 import pytest
 
-from dossier.fc import FeatureCollection
+from dossier.fc import FeatureCollection, StringCounter
 from dossier.label import Label, CorefValue
 from dossier.web import Folders
 
@@ -349,3 +349,23 @@ def test_only_negative_labels(store, label_store):
     # The search engine will fall back to a plain index scan if it has
     # insufficient training data.
     assert len(results['results']) >= 0
+
+
+def test_add_facets():
+    cid1 = 'cid1'
+    fc1 = FeatureCollection()
+    fc1['bowNP_sip'] = StringCounter([u'elephant', u'car'])
+    cid2 = 'cid2'
+    fc2 = FeatureCollection()
+    fc2['bowNP_sip'] = StringCounter([u'car', u'green'])
+    fake_results = {'results': [(cid1, fc1), (cid2, fc2)]}
+
+    new_results = mod_pairwise.add_facets(fake_results)
+
+    assert 'facets' in new_results
+
+    assert new_results['facets'] == {
+        'elephant': [cid1],
+        'car': [cid1, cid2],
+        'green': [cid2],
+        }
