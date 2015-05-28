@@ -33,18 +33,17 @@ logger = logging.getLogger(__name__)
 
 
 class similar(web.SearchEngine):
+    param_schema = dict(web.SearchEngine.param_schema, **{
+        'canopy_limit': {'type': 'int', 'default': 1000,
+                         'min': 0, 'max': 10000},
+        'label_limit': {'type': 'int', 'default': 1000,
+                        'min': 0, 'max': 10000},
+    })
+
     def __init__(self, store, label_store):
         super(similar, self).__init__()
         self.store = store
         self.label_store = label_store
-
-    @property
-    def canopy_limit(self):
-        return str_to_max_int(self.query_params.get('canopy_limit'), 1000)
-
-    @property
-    def label_limit(self):
-        return str_to_max_int(self.query_params.get('label_limit'), 1000)
 
     def recommendations(self):
         candidates = self.candidates()
@@ -54,7 +53,8 @@ class similar(web.SearchEngine):
         learner = PairwiseFeatureLearner(
             self.store, self.label_store, self.query_content_id,
             subtopic_id=self.query_params.get('subtopic_id'),
-            canopy_limit=self.canopy_limit, label_limit=self.label_limit)
+            canopy_limit=self.params['canopy_limit'],
+            label_limit=self.params['label_limit'])
         try:
             candidate_probs = self.ranked_candidates(learner)
         except InsufficientTrainingData:
@@ -68,7 +68,7 @@ class similar(web.SearchEngine):
         ranked = ifilter(lambda t: predicate(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
-        return {'results': list(islice(results, self.result_limit))}
+        return {'results': list(islice(results, self.params['limit']))}
 
     def ranked_candidates(self, learner):
         return sorted(learner.probabilities(), reverse=True, key=itemgetter(1))
