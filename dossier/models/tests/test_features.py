@@ -8,6 +8,8 @@ construct features.
 import json
 import pytest
 
+import nltk
+
 from dossier.fc import StringCounter, FeatureCollection
 import dossier.models.features as features
 
