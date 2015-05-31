@@ -162,6 +162,10 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
     fc[u'a_url_hostnames'] = features.host_names(fc[u'a_url'])
     fc[u'a_url_usernames'] = features.usernames(fc[u'a_url'])
 
+    # beginning of treating this as a pipeline...
+    xform = features.entity_names()
+    fc = xform.process(fc)
+
     for feat_name, feat_val in other_features.iteritems():
         fc[feat_name] = feat_val
 

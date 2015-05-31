@@ -1,3 +1,10 @@
+'''extractor of noun phrases (NPs) and statistically interesting
+phrases (SIPs) used to create features in FCs.
+
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2015 Diffeo, Inc.
+
+'''
 from __future__ import absolute_import, division, print_function
 
 try:

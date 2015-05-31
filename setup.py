@@ -26,6 +26,9 @@ class DataInstallCommand(distutils.cmd.Command):
         'maxent_treebank_pos_tagger',
         'wordnet',
         'stopwords',
+        'punkt',
+        'maxent_ne_chunker',
+        'words',
     ]
     user_options = []
     description = '''installs nltk data'''
