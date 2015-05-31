@@ -1,6 +1,7 @@
 import os
 
 from setuptools import setup, find_packages
+from setuptools.command.install import install
 
 from version import get_git_version
 VERSION, SOURCE_LABEL = get_git_version()
@@ -16,6 +17,22 @@ def read_file(file_name):
     return open(file_path).read()
 
 
+class CustomInstall(install):
+    nltk_data=[
+        'maxent_treebank_pos_tagger',
+        'wordnet',
+    ]
+    def run(self):
+        install.run(self)
+        try:
+            import nltk
+            for data_name in self.nltk_data:
+                print('nltk.download(%r)' % data_name)
+                nltk.download(data_name)
+        except ImportError:
+            print('failed to import nltk, so not installing nltk data')
+
+
 setup(
     name=PROJECT,
     version=VERSION,
@@ -26,6 +43,7 @@ setup(
     author_email=AUTHOR_EMAIL,
     url=URL,
     packages=find_packages(),
+    #cmdclass={'install': CustomInstall,}
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Topic :: Utilities',
@@ -61,5 +79,9 @@ setup(
             'dossier.models.soft_selectors = dossier.models.soft_selectors:main',
             'dossier.etl = dossier.models.etl:main',
         ],
+        'streamcorpus_pipeline.stages': [
+            'to_dossier_store = dossier.models.etl.interface:to_dossier_store',
+        ],
     },
 )
+
