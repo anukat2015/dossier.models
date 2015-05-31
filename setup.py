@@ -1,11 +1,9 @@
 import os
 
 from setuptools import setup, find_packages
-from distutils.command.install import install
 import distutils.cmd
 import distutils.log
 
-import traceback
 
 from version import get_git_version
 VERSION, SOURCE_LABEL = get_git_version()
@@ -21,7 +19,7 @@ def read_file(file_name):
     return open(file_path).read()
 
 
-class DataInstallCommand(install):
+class DataInstallCommand(distutils.cmd.Command):
     '''installs nltk data'''
 
     nltk_data=[
@@ -32,15 +30,20 @@ class DataInstallCommand(install):
         'maxent_ne_chunker',
         'words',
     ]
+    user_options = []
+    description = '''installs nltk data'''
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
     def run(self):
-        install.run(self)
-        try:
-            import nltk
-            for data_name in self.nltk_data:
-                print('nltk.download(%r)' % data_name)
-                nltk.download(data_name)
-        except Exception, exc:
-            print('failed to install the nltk data: %s' % traceback.format_exc(exc))
+        import nltk
+        for data_name in self.nltk_data:
+            print('nltk.download(%r)' % data_name)
+            nltk.download(data_name)
 
 setup(
     name=PROJECT,
@@ -52,9 +55,7 @@ setup(
     author_email=AUTHOR_EMAIL,
     url=URL,
     packages=find_packages(),
-    cmdclass={
-        'install': DataInstallCommand
-    },
+    cmdclass={'install_data': DataInstallCommand},
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Topic :: Utilities',
