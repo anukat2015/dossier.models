@@ -195,12 +195,12 @@ class PairwiseFeatureLearner(object):
 
     def as_result(self, cid, fc, p):
         fnames = sorted(set(self.query_fc.keys()).intersection(fc.keys()))
-        intermediates = {n: {'kernel': 'cosine',
+        intermediates = dict([(n, {'kernel': 'cosine',
                              'feature1': n,
                              'feature2': n,
                              'kernel_value': None,
                              'weight': None,
-                             'common_feature_values': []} for n in fnames}
+                             'common_feature_values': []}) for n in fnames])
         for n in fnames:
             intermediates[n]['weight'] = self.feature_weights.get(n)
         for n, qfeat, cfeat in ((n, self.query_fc[n], fc[n]) for n in fnames):
@@ -299,7 +299,7 @@ class PairwiseFeatureLearner(object):
         '''
         # We have insufficient training data when there is only one or
         # fewer classes of labels.
-        if len({lab[0] for lab in idx_labels}) <= 1:
+        if len(set([lab[0] for lab in idx_labels])) <= 1:
             return None
 
         fcs = [fc for _, fc in content_objs]
@@ -310,7 +310,7 @@ class PairwiseFeatureLearner(object):
         for coref_value, i, j in idx_labels:
             # i, j are indices into the list `fcs`
             labels.append(coref_value)  # either -1 or 1
-            phi_dict = {name: dis[name][i,j] for name in feature_names}
+            phi_dict = dict([(name, dis[name][i,j]) for name in feature_names])
             phi_dicts.append(phi_dict)
 
         vec = dict_vector()
@@ -318,8 +318,8 @@ class PairwiseFeatureLearner(object):
 
         model = LogisticRegression(class_weight='auto', penalty='l1')
         model.fit(training_data, labels)
-        self.feature_weights = {name: model.coef_[0][i]
-                                for i, name in enumerate(feature_names)}
+        self.feature_weights = dict([(name, model.coef_[0][i])
+                                     for i, name in enumerate(feature_names)])
         return feature_names, model, vec
 
     def classify(self, feature_names, classifier, transformer, candidates):
@@ -347,7 +347,7 @@ class PairwiseFeatureLearner(object):
 
         # in correspondence with `candidates`
         phi_dicts = transformer.transform(
-            [{name: dis[name][i] for name in feature_names}
+            [dict([(name, dis[name][i]) for name in feature_names])
              for i in xrange(len(candidates))])
         return classifier.predict_proba(phi_dicts)[:,1]
 
@@ -365,7 +365,7 @@ class PairwiseFeatureLearner(object):
         # the query. But I think this is a premature optimization since
         # the filtering functions will take care of it. (This optimization
         # would mean fewer kernel computations.)
-        blacklist = {self.query_content_id}
+        blacklist = set([self.query_content_id])
         cids = set()
 
         # OK, so it turns out that a naive index scan is pretty inflexible and
@@ -567,7 +567,7 @@ def vectorizable_features(fcs):
     :class:`collections.Mapping`).
     '''
     is_mapping = lambda obj: isinstance(obj, collections.Mapping)
-    return sorted({name for fc in fcs for name in fc if is_mapping(fc[name])})
+    return sorted(set([name for fc in fcs for name in fc if is_mapping(fc[name])]))
 
 
 def dissimilarities(feature_names, fcs):

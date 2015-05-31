@@ -1,6 +1,9 @@
 from __future__ import absolute_import, division, print_function
 
-from collections import Counter
+try:
+    from collections import Counter
+except ImportError:
+    from backport_collections import Counter
 
 import nltk
 from nltk.corpus import stopwords
@@ -10,8 +13,8 @@ from dossier.models.features.stopwords import stopwords as dossier_stopwords
 
 def sip_noun_phrases(tfidf, noun_phrases, limit=40):
     bow = tfidf[tfidf.id2word.doc2bow(noun_phrases)]
-    return {tfidf.id2word[word]: count
-            for word, count in Counter(dict(bow)).most_common(limit)}
+    return dict([(tfidf.id2word[word], count)
+                 for word, count in Counter(dict(bow)).most_common(limit)])
 
 
 def noun_phrases(text):
