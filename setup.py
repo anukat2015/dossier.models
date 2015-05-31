@@ -64,7 +64,7 @@ setup(
         'requests',
         'scipy',
         'scikit-learn',
-        'streamcorpus-pipeline>=0.7.2',
+        'streamcorpus-pipeline>=0.7.7',
         'pytest',
         'pytest-diffeo >= 0.1.4',
         'urlnorm >= 1.1.3',
