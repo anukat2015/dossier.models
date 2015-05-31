@@ -85,7 +85,7 @@ class to_dossier_store(Configured):
                     timestamp=si.stream_time.epoch_ticks,
                 )
                 add_sip_to_fc(fc, self.tfidf)
-                content_id = str(fc['content_id'])
+                content_id = mk_content_id(str(fc.get(u'meta_url')))
                 if content_id in seen:
                     logger.warn('dropping duplicate content_id=%r', content_id)
                 else:
@@ -145,7 +145,6 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
     url = url or u''
 
     fc[u'meta_url'] = uni(url)
-    fc[u'content_id'] = unicode(mk_content_id(url))
 
     add_feature(u'phone', features.phones(clean_visible))
     add_feature(u'email', features.emails(clean_visible))
