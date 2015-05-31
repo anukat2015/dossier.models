@@ -1,4 +1,11 @@
+'''dossier.models.tests for ETL
 
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2015 Diffeo, Inc.
+'''
+
+
+from dossier.models.tests import nltk_data
 from dossier.models.etl import html_to_fc
 
 
@@ -35,7 +42,7 @@ test_html = '''
                   <option value="4373">jobs
 '''
 
-def test_html_to_fc():
+def test_html_to_fc(nltk_data):
     
     fc = html_to_fc(test_html.decode('utf8'))
     assert 'Date' not in fc['meta_clean_html']
