@@ -136,7 +136,21 @@ def example_fc():
     fc[u'meta_clean_visible'] = example_text
     return fc
 
-def test_entity_names(example_fc):
+nltk_data_packages = [
+    'maxent_treebank_pos_tagger',
+    'wordnet',
+    'stopwords',
+    'punkt',
+    'maxent_ne_chunker',
+    'words',
+]
+@pytest.fixture('session')
+def nltk_data():
+    for data_name in nltk_data_packages:
+        print('nltk.download(%r)' % data_name)
+        nltk.download(data_name)
+
+def test_entity_names(example_fc, nltk_data):
     '''test for the `entity_names` transform
     '''
     xform = features.entity_names()

@@ -22,14 +22,6 @@ def read_file(file_name):
 class DataInstallCommand(distutils.cmd.Command):
     '''installs nltk data'''
 
-    nltk_data=[
-        'maxent_treebank_pos_tagger',
-        'wordnet',
-        'stopwords',
-        'punkt',
-        'maxent_ne_chunker',
-        'words',
-    ]
     user_options = []
     description = '''installs nltk data'''
 
@@ -41,7 +33,8 @@ class DataInstallCommand(distutils.cmd.Command):
 
     def run(self):
         import nltk
-        for data_name in self.nltk_data:
+        from dossier.models.tests.test_features import nltk_data_packages
+        for data_name in nltk_data_packages:
             print('nltk.download(%r)' % data_name)
             nltk.download(data_name)
 
