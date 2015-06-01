@@ -26,6 +26,7 @@ from streamcorpus import Chunk
 from streamcorpus_pipeline.stages import Configured
 from streamcorpus_pipeline._clean_visible import cleanse, make_clean_visible
 from streamcorpus_pipeline._clean_html import make_clean_html
+import yakonfig
 
 from dossier.fc import FeatureCollection, StringCounter
 import dossier.models.features as features
@@ -59,7 +60,14 @@ class to_dossier_store(Configured):
     def __init__(self, *args, **kwargs):
         super(to_dossier_store, self).__init__(*args, **kwargs)
         kvl = kvlayer.client()
-        self.store = Store(kvl)
+        feature_indexes = None
+        try:
+            conf = yakonfig.get_global_config('dossier.store')
+            feature_indexes = conf['feature_indexes']
+        except KeyError:
+            pass
+        self.store = Store(kvl,
+                           feature_indexes=feature_indexes)
         tfidf_path = self.config.get('tfidf_path')
         self.tfidf = gensim.models.TfidfModel.load(tfidf_path)
 
