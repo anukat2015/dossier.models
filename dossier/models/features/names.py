@@ -14,7 +14,7 @@ except ImportError:
 import nltk
 
 from dossier.fc import StringCounter
-
+from streamcorpus_pipeline import cleanse
 
 class entity_names(object):
     '''Transform on :class:`~dosser.fc.FeatureCollection` that constructs
@@ -43,6 +43,9 @@ class entity_names(object):
                 if hasattr(chunk, 'label'):
                     label = chunk.label()
                     name = ' '.join(c[0] for c in chunk.leaves())
+                    if not isinstance(name, unicode):
+                        name = unicode(name, 'utf-8')
+                    name = cleanse(name)
                     #print chunk.node, name
                     names[label][name] += 1
         for entity_type, name_counts in names.items():

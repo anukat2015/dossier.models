@@ -133,5 +133,5 @@ def test_entity_names(example_fc, nltk_data):
     xform = features.entity_names()
     fc = xform.process(example_fc)
     assert u'PERSON' in fc, fc.keys()
-    assert u'Craig Winton' in fc[u'PERSON']
+    assert u'craig winton' in fc[u'PERSON']
     #print(json.dumps(dict(fc), indent=4))
