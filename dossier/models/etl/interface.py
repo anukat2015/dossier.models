@@ -14,6 +14,7 @@ database, but it will be generalized as part of future work.)
 from __future__ import absolute_import, division, print_function
 
 import abc
+import json
 import logging
 import time
 import urllib
@@ -77,12 +78,17 @@ class to_dossier_store(Configured):
                 if clean_html is None or len(clean_html.strip()) == 0:
                     logger.warn('dropping SI lacking clean_html: %r', si.abs_url)
                     continue
+                if 'other_features' in si.other_content:
+                    other_features = json.loads(si.other_content['other_features'].raw)
+                else:
+                    other_features = None
                 fc = html_to_fc(
                     clean_html=si.body.clean_html.decode('utf-8'),
                     clean_visible=si.body.clean_visible.decode('utf-8'),
                     encoding='utf-8',
                     url=si.abs_url,
                     timestamp=si.stream_time.epoch_ticks,
+                    other_features=other_features,
                 )
                 add_sip_to_fc(fc, self.tfidf)
                 content_id = mk_content_id(str(fc.get(u'meta_url')))
@@ -105,7 +111,8 @@ def mk_content_id(key):
     return 'web|' + urllib.quote(key, safe='~')
 
 
-def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, url=None, timestamp=None, other_features=None):
+def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, url=None,
+               timestamp=None, other_features=None):
     '''`html` is expected to be a raw string received over the wire from a
     remote webserver, and `encoding`, if provided, is used to decode
     it.  Typically, encoding comes from the Content-Type header field.
@@ -166,7 +173,7 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
     fc = xform.process(fc)
 
     for feat_name, feat_val in other_features.iteritems():
-        fc[feat_name] = feat_val
+        fc[feat_name] += StringCounter(feat_val)
 
     return fc
 
