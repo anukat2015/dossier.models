@@ -53,7 +53,14 @@ def v1_folder_report(request, response, kvlclient, store, fid):
     gen.run(body)
     return body.getvalue()
 
+@app.post('/dossier/v1/folder/<fid>/extract')
+def v1_folder_extract_post(request, response, kvlclient, store, fid):
+    folders = new_folders(kvlclient, request)
 
+@app.get('/dossier/v1/folder/<fid>/extract')
+def v1_folder_extract_get(request, response, kvlclient, store, fid):
+    pass
+    
 @app.put('/dossier/v1/feature-collection/<cid>', json=True)
 def v1_fc_put(request, response, store, tfidf, cid):
     '''Store a single feature collection.
