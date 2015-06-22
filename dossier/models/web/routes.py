@@ -16,6 +16,7 @@ from dossier.models import etl
 from dossier.models.folder import Folders
 from dossier.models.report import ReportGenerator
 import dossier.web.routes as routes
+from dossier.web.util import fc_to_json
 
 
 app = bottle.Bottle()
@@ -79,7 +80,7 @@ def v1_fc_put(request, response, store, tfidf, cid):
         fc = create_fc_from_html(url, request.body.read(), tfidf=tfidf)
         logger.info('created FC for "%r": %r', cid, fc)
         store.put([(cid, fc)])
-        return routes.fc_to_json(fc)
+        return fc_to_json(fc)
     else:
         return routes.v1_fc_put(request, response, lambda x: x, store, cid)
 
