@@ -456,57 +456,9 @@ class PairwiseFeatureLearner(object):
 
     def negative_subtopic_labels(self):
         cid, subid = self.query_content_id, self.query_subtopic_id
-        subfolders = list(self.folders.parent_subfolders((cid, subid)))
-
-        # Find any directly connected negative labels to any item in the
-        # containing subfolder.
-        for fid, subfolder_id in subfolders:
-            for cid2, subid2 in self.folders.items(fid, subfolder_id):
-                for lab in self.label_store.directly_connected(cid2):
-                    if lab.value == CorefValue.Negative \
-                            and lab.subtopic_for(cid2) == subid2:
-                        yield lab
-
-        # Find all items in subfolders other than the subfolder that contains
-        # (cid, subid) and add negative labels. Stay inside the folder (topic)
-        # for now though.
-        #
-        # It's possible that `(cid, subid)` are in more than one subfolder,
-        # but in SortingDesk, `subid` is usually some kind of offset or hash,
-        # so it's probably very unlikely. In any case, if it is in more than
-        # one subfolder, then it's a user error and we just have to hope that
-        # the model figures it out.
-        in_fids = set()
-        for fid, subfolder_id in subfolders:
-            in_fids.add(fid)
-            for cousin_subid in self.folders.subfolders(fid):
-                if cousin_subid == subfolder_id:
-                    # You can't be a cousin to yourself!
-                    continue
-                for cid2, subid2 in self.folders.items(fid, cousin_subid):
-                    # TODO: Fix annotator id here. (We need to push annotator
-                    # information down into the search engine; the rest is
-                    # trivial.) ---AG
-                    yield Label(cid, cid2,
-                                Folders.DEFAULT_ANNOTATOR_ID,
-                                CorefValue.Negative,
-                                subid, subid2)
-
-        # If we exhaust the above, then let's start adding negative labels with
-        # other topics.
-        for other_fid in self.folders.folders():
-            if other_fid in in_fids:
-                # The item was found in one of these folders above, so ignore
-                # it here.
-                continue
-            # We're home free. Find every item in this folder and make a
-            # negative label for each.
-            for other_subid in self.folders.subfolders(other_fid):
-                for cid2, subid2 in self.folders.items(other_fid, other_subid):
-                    yield Label(cid, cid2,
-                                Folders.DEFAULT_ANNOTATOR_ID,
-                                CorefValue.Negative,
-                                subid, subid2)
+        for lab in negative_subtopic_labels(self.label_store, self.folders,
+                                            cid, subid):
+            yield lab
 
     def content_objs_from_labels(self, labels):
         '''[Label] -> [(content_id, FeatureCollection)]'''
@@ -599,3 +551,57 @@ def str_to_max_int(s, maximum):
         return min(maximum, int(s))
     except (ValueError, TypeError):
         return maximum
+
+
+def negative_subtopic_labels(label_store, folders, cid, subid):
+    subfolders = list(folders.parent_subfolders((cid, subid)))
+
+    # Find any directly connected negative labels to any item in the
+    # containing subfolder.
+    for fid, subfolder_id in subfolders:
+        for cid2, subid2 in folders.items(fid, subfolder_id):
+            for lab in label_store.directly_connected(cid2):
+                if lab.value == CorefValue.Negative \
+                        and lab.subtopic_for(cid2) == subid2:
+                    yield lab
+
+    # Find all items in subfolders other than the subfolder that contains
+    # (cid, subid) and add negative labels. Stay inside the folder (topic)
+    # for now though.
+    #
+    # It's possible that `(cid, subid)` are in more than one subfolder,
+    # but in SortingDesk, `subid` is usually some kind of offset or hash,
+    # so it's probably very unlikely. In any case, if it is in more than
+    # one subfolder, then it's a user error and we just have to hope that
+    # the model figures it out.
+    in_fids = set()
+    for fid, subfolder_id in subfolders:
+        in_fids.add(fid)
+        for cousin_subid in folders.subfolders(fid):
+            if cousin_subid == subfolder_id:
+                # You can't be a cousin to yourself!
+                continue
+            for cid2, subid2 in folders.items(fid, cousin_subid):
+                # TODO: Fix annotator id here. (We need to push annotator
+                # information down into the search engine; the rest is
+                # trivial.) ---AG
+                yield Label(cid, cid2,
+                            Folders.DEFAULT_ANNOTATOR_ID,
+                            CorefValue.Negative,
+                            subid, subid2)
+
+    # If we exhaust the above, then let's start adding negative labels with
+    # other topics.
+    for other_fid in folders.folders():
+        if other_fid in in_fids:
+            # The item was found in one of these folders above, so ignore
+            # it here.
+            continue
+        # We're home free. Find every item in this folder and make a
+        # negative label for each.
+        for other_subid in folders.subfolders(other_fid):
+            for cid2, subid2 in folders.items(other_fid, other_subid):
+                yield Label(cid, cid2,
+                            Folders.DEFAULT_ANNOTATOR_ID,
+                            CorefValue.Negative,
+                            subid, subid2)
