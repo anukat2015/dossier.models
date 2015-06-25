@@ -13,7 +13,7 @@ from __future__ import absolute_import, division, print_function
 import collections
 from itertools import ifilter, imap, islice
 import logging
-from operator import itemgetter
+import operator
 import math
 import re
 
@@ -24,68 +24,87 @@ from sklearn.linear_model import LogisticRegression
 
 from dossier.fc import StringCounter
 from dossier.label import CorefValue, Label
-import dossier.web as web
+from dossier.web import engine_index_scan, streaming_sample
 from dossier.models.folder import Folders
 from dossier.models.soft_selectors import find_soft_selectors
 
-
 logger = logging.getLogger(__name__)
 
+itget = operator.itemgetter
 
-class similar(web.SearchEngine):
-    param_schema = dict(web.SearchEngine.param_schema, **{
-        'canopy_limit': {'type': 'int', 'default': 1000,
-                         'min': 0, 'max': 10000},
-        'label_limit': {'type': 'int', 'default': 1000,
-                        'min': 0, 'max': 10000},
-    })
 
-    def __init__(self, store, label_store):
-        super(similar, self).__init__()
-        self.store = store
-        self.label_store = label_store
+def similar(store, label_store):
+    '''An active learning search engine that returns similar results.
 
-    def recommendations(self):
-        candidates = self.candidates()
-        return add_facets(add_soft_selectors(candidates))
+    This satisfies the :class:`dossier.web.SearchEngine` interface.
 
-    def candidates(self):
+    In addition to the standard query inputs of ``content_id``,
+    ``filter_pred``, and ``limit``, this search engine has optional
+    parameters ``canopy_limit`` and ``label_limit`` that restrict
+    the number of candidates loaded for in-memory ranking and the
+    number of labels used for model training, respectively.
+    '''
+    return create_search_engine(store, label_store, similar=True)
+
+
+def dissimilar(store, label_store):
+    '''An active learning search engine that returns dissimilar results.
+
+    This satisfies the :class:`dossier.web.SearchEngine` interface.
+
+    In addition to the standard query inputs of ``content_id``,
+    ``filter_pred``, and ``limit``, this search engine has optional
+    parameters ``canopy_limit`` and ``label_limit`` that restrict
+    the number of candidates loaded for in-memory ranking and the
+    number of labels used for model training, respectively.
+    '''
+    return create_search_engine(store, label_store, similar=False)
+
+
+def create_search_engine(store, label_store, similar=True):
+    # N.B. `limit` caps the final results returned by the ranker.
+    # This is distinct from `canopy_limit` and `label_limit`, where
+    # they are used to keep resource use in check.
+    def _(content_id, filter_pred, limit,
+          canopy_limit=100, label_limit=100, subtopic_id=None,
+          **kwargs):
+        '''Creates an active learning search engine.
+
+        This is a helper function meant to satisfy the interface of
+        a search engine with a particular active learning model.
+        '''
+        # Are these maximums good enough? No idea. ---AG
+        canopy_limit = str_to_max_int(canopy_limit, 1000)
+        label_limit = str_to_max_int(label_limit, 1000)
+
         learner = PairwiseFeatureLearner(
-            self.store, self.label_store, self.query_content_id,
-            subtopic_id=self.query_params.get('subtopic_id'),
-            canopy_limit=self.params['canopy_limit'],
-            label_limit=self.params['label_limit'])
+            store, label_store, content_id,
+            subtopic_id=subtopic_id,
+            canopy_limit=canopy_limit, label_limit=label_limit)
         try:
-            candidate_probs = self.ranked_candidates(learner)
+            candidate_probs = sorted(
+                learner.probabilities(), reverse=similar, key=itget(1))
         except InsufficientTrainingData:
             logger.info('Falling back to plain index scan...')
-            return (web.engine_index_scan(self.store)
-                       .set_query_id(self.query_content_id)
-                       .set_query_params(self.query_params)
-                       .recommendations())
+            index_scan = engine_index_scan(store)
+            engine_result = index_scan(content_id, filter_pred, limit)
+            return add_facets(add_soft_selectors(engine_result, **kwargs))
 
-        predicate = self.create_filter_predicate()
-        ranked = ifilter(lambda t: predicate(t[0]), candidate_probs)
+        ranked = ifilter(lambda t: filter_pred(t[0]), candidate_probs)
         results = imap(lambda ((cid, fc), p): learner.as_result(cid, fc, p),
                        ranked)
-        return {'results': list(islice(results, self.params['limit']))}
-
-    def ranked_candidates(self, learner):
-        return sorted(learner.probabilities(), reverse=True, key=itemgetter(1))
-
-
-class dissimilar(similar):
-    def ranked_candidates(self, learner):
-        return sorted(learner.probabilities(), key=itemgetter(1))
+        top_results = list(islice(results, limit))
+        return add_facets(add_soft_selectors({'results': top_results}, **kwargs))
+    return _
 
 
-def add_soft_selectors(engine_result):
+def add_soft_selectors(engine_result, **kwargs):
     results = engine_result['results']
     ids_and_clean, fcs = [], {}
     for r in results:
         ids_and_clean.append((r[0], r[1].get(u'meta_clean_visible', '')))
         fcs[r[0]] = r[1]
-    suggestions = find_soft_selectors(ids_and_clean)
+    suggestions = find_soft_selectors(ids_and_clean, **kwargs)
     for s in suggestions:
         for hit in s['hits']:
             hit['title'] = get_title(fcs[hit['content_id']],
@@ -94,9 +113,7 @@ def add_soft_selectors(engine_result):
 
 
 def add_facets(engine_result, facet_features=None):
-    '''Adds facets to search results.
-
-    Construct a new result payload with `facets` added as a new
+    '''construct a new result payload with `facets` added as a new
     top-level property that carries a mapping from unicode strings to
     lists of content_ids.  The `facet_features` lists the names of
     :class:`~dossier.fc.StringCounter` features in each result
@@ -105,6 +122,7 @@ def add_facets(engine_result, facet_features=None):
     `bowNP_sip`.
 
     The remainder of the facet logic is handled in the UI.
+
     '''
     if facet_features is None:
         facet_features = ['bowNP_sip']
@@ -334,9 +352,8 @@ class PairwiseFeatureLearner(object):
         return classifier.predict_proba(phi_dicts)[:,1]
 
     def canopy(self, limit=None):
-        ids = web.streaming_sample(
-            self.canopy_ids(limit_hint=hard_limit(limit)),
-            limit, hard_limit(limit))
+        ids = streaming_sample(self.canopy_ids(limit_hint=hard_limit(limit)),
+                               limit, hard_limit(limit))
         # I don't think it ever makes sense to include the query
         # as part of the candidate set.
         return filter(lambda (_, fc): fc is not None, self.store.get_many(ids))
@@ -418,9 +435,9 @@ class PairwiseFeatureLearner(object):
         logger.info('Inferring negative labels for: %r', (cid, subid))
         neg_labels = self.negative_subtopic_labels()
 
-        pos_sample = web.streaming_sample(
+        pos_sample = streaming_sample(
             pos_labels, limit, limit=hard_limit(limit))
-        neg_sample = web.streaming_sample(
+        neg_sample = streaming_sample(
             neg_labels, limit, limit=hard_limit(limit))
         print('-' * 79)
         print('POSITIVES\n', '\n'.join(map(repr, pos_sample)), '\n')
@@ -456,9 +473,57 @@ class PairwiseFeatureLearner(object):
 
     def negative_subtopic_labels(self):
         cid, subid = self.query_content_id, self.query_subtopic_id
-        for lab in negative_subtopic_labels(self.label_store, self.folders,
-                                            cid, subid):
-            yield lab
+        subfolders = list(self.folders.parent_subfolders((cid, subid)))
+
+        # Find any directly connected negative labels to any item in the
+        # containing subfolder.
+        for fid, subfolder_id in subfolders:
+            for cid2, subid2 in self.folders.items(fid, subfolder_id):
+                for lab in self.label_store.directly_connected(cid2):
+                    if lab.value == CorefValue.Negative \
+                            and lab.subtopic_for(cid2) == subid2:
+                        yield lab
+
+        # Find all items in subfolders other than the subfolder that contains
+        # (cid, subid) and add negative labels. Stay inside the folder (topic)
+        # for now though.
+        #
+        # It's possible that `(cid, subid)` are in more than one subfolder,
+        # but in SortingDesk, `subid` is usually some kind of offset or hash,
+        # so it's probably very unlikely. In any case, if it is in more than
+        # one subfolder, then it's a user error and we just have to hope that
+        # the model figures it out.
+        in_fids = set()
+        for fid, subfolder_id in subfolders:
+            in_fids.add(fid)
+            for cousin_subid in self.folders.subfolders(fid):
+                if cousin_subid == subfolder_id:
+                    # You can't be a cousin to yourself!
+                    continue
+                for cid2, subid2 in self.folders.items(fid, cousin_subid):
+                    # TODO: Fix annotator id here. (We need to push annotator
+                    # information down into the search engine; the rest is
+                    # trivial.) ---AG
+                    yield Label(cid, cid2,
+                                Folders.DEFAULT_ANNOTATOR_ID,
+                                CorefValue.Negative,
+                                subid, subid2)
+
+        # If we exhaust the above, then let's start adding negative labels with
+        # other topics.
+        for other_fid in self.folders.folders():
+            if other_fid in in_fids:
+                # The item was found in one of these folders above, so ignore
+                # it here.
+                continue
+            # We're home free. Find every item in this folder and make a
+            # negative label for each.
+            for other_subid in self.folders.subfolders(other_fid):
+                for cid2, subid2 in self.folders.items(other_fid, other_subid):
+                    yield Label(cid, cid2,
+                                Folders.DEFAULT_ANNOTATOR_ID,
+                                CorefValue.Negative,
+                                subid, subid2)
 
     def content_objs_from_labels(self, labels):
         '''[Label] -> [(content_id, FeatureCollection)]'''
@@ -501,8 +566,11 @@ def vectorizable_features(fcs):
     features are vectorizable (i.e., they are an instance of
     :class:`collections.Mapping`).
     '''
+    logger.critical('running vectorizable...')
     is_mapping = lambda obj: isinstance(obj, collections.Mapping)
-    return sorted(set([name for fc in fcs for name in fc if is_mapping(fc[name])]))
+    names = set([name for fc in fcs for name in fc if is_mapping(fc[name])])
+    names.remove('title')
+    return sorted(names)
 
 
 def dissimilarities(feature_names, fcs):
@@ -518,8 +586,8 @@ def dissimilarities(feature_names, fcs):
     dis = {}
     for count, name in enumerate(feature_names, 1):
         logger.info('computing pairwise dissimilarity matrix '
-                    'for %d of %d features (current feature: %s)',
-                    count, len(feature_names), name)
+                    'for %d of %d features (current feature: %s: %r)',
+                    count, len(feature_names), name, type(fcs[0][name]))
         ## opportunity to use joblib is buried down inside call to
         ## pairwise_distances...
         # And it's fixed to `n_jobs=1` because running multiprocessing
@@ -551,57 +619,3 @@ def str_to_max_int(s, maximum):
         return min(maximum, int(s))
     except (ValueError, TypeError):
         return maximum
-
-
-def negative_subtopic_labels(label_store, folders, cid, subid):
-    subfolders = list(folders.parent_subfolders((cid, subid)))
-
-    # Find any directly connected negative labels to any item in the
-    # containing subfolder.
-    for fid, subfolder_id in subfolders:
-        for cid2, subid2 in folders.items(fid, subfolder_id):
-            for lab in label_store.directly_connected(cid2):
-                if lab.value == CorefValue.Negative \
-                        and lab.subtopic_for(cid2) == subid2:
-                    yield lab
-
-    # Find all items in subfolders other than the subfolder that contains
-    # (cid, subid) and add negative labels. Stay inside the folder (topic)
-    # for now though.
-    #
-    # It's possible that `(cid, subid)` are in more than one subfolder,
-    # but in SortingDesk, `subid` is usually some kind of offset or hash,
-    # so it's probably very unlikely. In any case, if it is in more than
-    # one subfolder, then it's a user error and we just have to hope that
-    # the model figures it out.
-    in_fids = set()
-    for fid, subfolder_id in subfolders:
-        in_fids.add(fid)
-        for cousin_subid in folders.subfolders(fid):
-            if cousin_subid == subfolder_id:
-                # You can't be a cousin to yourself!
-                continue
-            for cid2, subid2 in folders.items(fid, cousin_subid):
-                # TODO: Fix annotator id here. (We need to push annotator
-                # information down into the search engine; the rest is
-                # trivial.) ---AG
-                yield Label(cid, cid2,
-                            Folders.DEFAULT_ANNOTATOR_ID,
-                            CorefValue.Negative,
-                            subid, subid2)
-
-    # If we exhaust the above, then let's start adding negative labels with
-    # other topics.
-    for other_fid in folders.folders():
-        if other_fid in in_fids:
-            # The item was found in one of these folders above, so ignore
-            # it here.
-            continue
-        # We're home free. Find every item in this folder and make a
-        # negative label for each.
-        for other_subid in folders.subfolders(other_fid):
-            for cid2, subid2 in folders.items(other_fid, other_subid):
-                yield Label(cid, cid2,
-                            Folders.DEFAULT_ANNOTATOR_ID,
-                            CorefValue.Negative,
-                            subid, subid2)

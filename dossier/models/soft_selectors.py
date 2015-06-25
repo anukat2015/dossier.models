@@ -28,7 +28,9 @@ stop_words = many_stop_words.get_stop_words()
 
 
 def find_soft_selectors(ids_and_clean_visible, start_num_tokens='10',
-                        max_num_tokens='20', filter_punctuation='0'):
+                        max_num_tokens='20',
+                        filter_punctuation='0',
+                        **kwargs):
     '''External interface for dossier.models.soft_selectors.
 
     This at scans through `num_tokens` values between
@@ -167,6 +169,18 @@ def find_soft_selectors_at_n(ids_and_clean_visible, num_tokens,
 
     top_phrases = []
     for word_id, score in corpus_ordered:
+        if 'EDRM' in dictionary[word_id]: continue
+        if 'ZL Technologies' in dictionary[word_id]: continue
+        if 'Attribution' in dictionary[word_id]: continue
+        if 'attribution' in dictionary[word_id]: continue
+        if 'ZL' in dictionary[word_id]: continue
+        if 'EML' in dictionary[word_id]: continue
+        if 'PST' in dictionary[word_id]: continue
+        if 'NSF' in dictionary[word_id]: continue
+        
+        if 'Creative Commons Attribution' in dictionary[word_id]: continue
+        if 'Enron Email' in dictionary[word_id]: continue
+        if 'Data Set' in dictionary[word_id]: continue
         top_phrases.append({
             'score': score,
             'phrase': dictionary[word_id],

@@ -274,10 +274,9 @@ def test_search_engine(store, label_store):
     label_store.put(neg_label('q', 'b'))
     label_store.put(neg_label('q', 'c'))
 
-    results = (mod_pairwise.similar(store, label_store)
-                           .set_query_id('q')
-                           .set_query_params({'limit': 1})
-                           .recommendations())
+    engine = mod_pairwise.similar(store, label_store)
+    results = engine('q', lambda _: True, 1)
+    print(results)
     assert results['results'][0][0] != 'a'
 
 
@@ -296,10 +295,8 @@ def test_search_engine_limit(store, label_store):
     label_store.put(neg_label('q', 'a'))
     label_store.put(pos_label('q', 'b'))
 
-    results = (mod_pairwise.similar(store, label_store)
-                           .set_query_id('q')
-                           .set_query_params({'limit': 2})
-                           .recommendations())
+    engine = mod_pairwise.similar(store, label_store)
+    results = engine('q', lambda _: True, 2)
     assert len(results['results']) == 2
 
 
@@ -307,10 +304,8 @@ def test_no_labels(store, label_store):
     '''Make sure the learner can handle zero labels.'''
     # Overwrite the query so we get some hits.
     store.put([('q', counter_fc({'x': 5, 'y': 90}))])
-    results = (mod_pairwise.similar(store, label_store)
-                           .set_query_id('q')
-                           .set_query_params({'limit': 1})
-                           .recommendations())
+    engine = mod_pairwise.similar(store, label_store)
+    results = engine('q', lambda _: True, 1)
     assert len(results['results']) == 0
 
 
@@ -328,10 +323,8 @@ def test_only_positive_labels(store, label_store):
     # And assign a label to the query.
     label_store.put(pos_label('q', 'b'))
 
-    results = (mod_pairwise.similar(store, label_store)
-                           .set_query_id('q')
-                           .set_query_params({'limit': 100})
-                           .recommendations())
+    engine = mod_pairwise.similar(store, label_store)
+    results = engine('q', lambda _: True, 100)
     # The search engine will fall back to a plain index scan if it has
     # insufficient training data.
     assert len(results['results']) >= 0
@@ -351,10 +344,8 @@ def test_only_negative_labels(store, label_store):
     # And assign a label to the query.
     label_store.put(neg_label('q', 'a'))
 
-    results = (mod_pairwise.similar(store, label_store)
-                           .set_query_id('q')
-                           .set_query_params({'limit': 100})
-                           .recommendations())
+    engine = mod_pairwise.similar(store, label_store)
+    results = engine('q', lambda _: True, 100)
     # The search engine will fall back to a plain index scan if it has
     # insufficient training data.
     assert len(results['results']) >= 0

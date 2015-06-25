@@ -131,7 +131,10 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
     def add_feature(name, xs):
         if name not in fc:
             fc[name] = StringCounter()
-        fc[name] += StringCounter(xs)
+        try:
+            fc[name] += StringCounter(xs)
+        except:
+            pass
 
     timestamp = timestamp or int(time.time() * 1000)
     other_features = other_features or {}
