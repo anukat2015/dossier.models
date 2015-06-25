@@ -53,12 +53,34 @@ def v1_folder_report(request, response, kvlclient, store, fid):
     gen.run(body)
     return body.getvalue()
 
-@app.post('/dossier/v1/folder/<fid>/extract')
-def v1_folder_extract_post(request, response, kvlclient, store, fid):
-    folders = new_folders(kvlclient, request)
+@app.post('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
+def v1_folder_extract_post(request, response, kvlclient, store, 
+                           label_store, fid, sid):
+    ## TODO: this block of code needs to move into a `coordinate` run
+    ## function and then get extended to:
 
-@app.get('/dossier/v1/folder/<fid>/extract')
-def v1_folder_extract_get(request, response, kvlclient, store, fid):
+    # 1) include querying the Google Custom Search API by copying/porting the
+    # web2dehc/google.py
+   
+    # 2) fetch the URLs, using code ported/copied out of
+    # web2dehc/fetcher.py
+
+    # 3) ingested into dossier.store using streamcorpus_pipeline and
+    # dossier.models.etl.interface.to_dossier_store
+
+    folders = new_folders(kvlclient, request)
+    ids = map(itemgetter(0), folders.items(fid, sid))
+    positive_fcs = imap(itemgetter(1), store.get_many(ids))
+    ids = negative_subtopic_labels(label_store, folders, fid, sid)
+    negative_fcs = imap(itemgetter(1), store.get_many(ids))
+    pos_words, neg_words = extract(positive_fcs, negative_fcs)
+    return {'postive': dict(pos_words),
+            'negative': dict(neg_words)}
+
+@app.get('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
+def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
+    ## TODO: this needs to use the python client for `coordinate` to
+    ## check on the status of the work unit defined by (fid, sid)
     pass
     
 @app.put('/dossier/v1/feature-collection/<cid>', json=True)
