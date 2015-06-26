@@ -128,7 +128,14 @@ def norm_url(url):
         return urlnorm.norm(url)
     except urlnorm.InvalidUrl:
         # Happens when the URL is relative. Call path normalization directly.
-        return urlnorm.norm_path('', url)
+        try:
+            return urlnorm.norm_path('', url)
+        except UnicodeDecodeError:
+            return url
+
+    except UnicodeDecodeError:
+        # work around for bug in urlnorm on unicode url
+        return url
     except:
         traceback.print_exc()
     return None
