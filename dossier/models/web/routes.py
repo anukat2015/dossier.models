@@ -105,7 +105,14 @@ def rejester_run_extract(work_unit):
         tfidf = web_conf.tfidf
         folders = Folders(web_conf.kvlclient)
         fetcher = Fetcher()
-        queries = get_subfolder_queries(web_conf.store, folders, fid, sid)
+
+        # This is where you can enable the keyword extractor.
+        # Comment out the next two lines (`get_subfolder_queries`)
+        # and uncomment the following two lines (`extract_keyword_queries`).
+        queries = get_subfolder_queries(
+            web_conf.store, web_conf.label_store, folders, fid, sid)
+        # queries = extract_keyword_queries(
+        #     web_conf.store, web_conf.label_store, folders, fid, sid)
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
@@ -139,7 +146,7 @@ def rejester_run_extract(work_unit):
                                 cid, result['link'], exc_info=True)
 
 
-def get_subfolder_queries(store, folders, fid, sid):
+def get_subfolder_queries(store, label_store, folders, fid, sid):
     '''Returns [unicode].
 
     This returns a list of queries that can be passed on to "other"
@@ -151,6 +158,19 @@ def get_subfolder_queries(store, folders, fid, sid):
         if stype in ('text', 'manual'):
             queries.append(data)
     return queries
+
+
+def extract_keyword_queries(store, label_store, folders, fid, sid):
+    ids = map(itemgetter(0), folders.items(fid, sid))
+    positive_fcs = map(itemgetter(1), store.get_many(ids))
+    negative_ids = imap(itemgetter(0),
+                        negative_subfolder_ids(label_store, folders, fid, sid))
+    negative_fcs = map(itemgetter(1), store.get_many(negative_ids))
+    pos_words, neg_words = extract(positive_fcs, negative_fcs,
+                                   features=['bowNP_sip'])
+    # Stupidly limit it to 5 keywords for now, so that we don't spawn a huge
+    # number of Google searches.
+    return (pos_words.keys() + neg_words.keys())[0:5]
 
 
 # I don't know how to make this code do useful things. The extractor seems
