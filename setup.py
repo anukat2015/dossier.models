@@ -55,6 +55,7 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     install_requires=[
+        'cbor',
         'beautifulsoup4',
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
@@ -74,7 +75,10 @@ setup(
         'pytest-diffeo >= 0.1.4',
         'urlnorm >= 1.1.3',
         'xlsxwriter',
-        'Pillow'
+        'Pillow',
+        'yakonfig',
+        'rejester',
+        'kvlayer',
     ],
     include_package_data=True,
     zip_safe=False,

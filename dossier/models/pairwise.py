@@ -520,8 +520,8 @@ def dissimilarities(feature_names, fcs):
         logger.info('computing pairwise dissimilarity matrix '
                     'for %d of %d features (current feature: %s)',
                     count, len(feature_names), name)
-        ## opportunity to use joblib is buried down inside call to
-        ## pairwise_distances...
+        # opportunity to use joblib is buried down inside call to
+        # pairwise_distances...
         # And it's fixed to `n_jobs=1` because running multiprocessing
         # inside py.test causes weird problems. It also doesn't seem like a
         # good idea to do it inside a web server either. ---AG
@@ -605,3 +605,32 @@ def negative_subtopic_labels(label_store, folders, cid, subid):
                             Folders.DEFAULT_ANNOTATOR_ID,
                             CorefValue.Negative,
                             subid, subid2)
+
+
+def negative_subfolder_ids(label_store, folders, fid, subid):
+    # Find all items in subfolders other than the subfolder that contains
+    # (cid, subid) and add negative labels. Stay inside the folder (topic)
+    # for now though.
+    #
+    # It's possible that `(cid, subid)` are in more than one subfolder,
+    # but in SortingDesk, `subid` is usually some kind of offset or hash,
+    # so it's probably very unlikely. In any case, if it is in more than
+    # one subfolder, then it's a user error and we just have to hope that
+    # the model figures it out.
+    for cousin_subid in folders.subfolders(fid):
+        if cousin_subid == subid:
+            # You can't be a cousin to yourself!
+            continue
+        for cid2, subid2 in folders.items(fid, cousin_subid):
+            yield cid2, subid2
+
+    # If we exhaust the above, then let's start adding negative labels with
+    # other topics.
+    for other_fid in folders.folders():
+        if other_fid == fid:
+            continue
+        # We're home free. Find every item in this folder and make a
+        # negative label for each.
+        for other_subid in folders.subfolders(other_fid):
+            for cid2, subid2 in folders.items(other_fid, other_subid):
+                yield cid2, subid2

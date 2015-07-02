@@ -4,19 +4,34 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from StringIO import StringIO
+import hashlib
+from itertools import imap
 import logging
+from operator import itemgetter
 import os.path as path
 import urllib
 
 from bs4 import BeautifulSoup
 import bottle
+import cbor
 
+import dblogger
 from dossier.fc import StringCounter
 from dossier.models import etl
+from dossier.models.extractor import extract
 from dossier.models.folder import Folders
+from dossier.models.openquery.fetcher import Fetcher
+from dossier.models.pairwise import negative_subfolder_ids
 from dossier.models.report import ReportGenerator
+from dossier.models.subtopic import subtopics
+from dossier.models.web.config import Config
 import dossier.web.routes as routes
 from dossier.web.util import fc_to_json
+import kvlayer
+import rejester
+from rejester._task_master import \
+    AVAILABLE, BLOCKED, PENDING, FINISHED
+import yakonfig
 
 
 app = bottle.Bottle()
@@ -53,15 +68,105 @@ def v1_folder_report(request, response, kvlclient, store, fid):
     gen.run(body)
     return body.getvalue()
 
+
+@app.get('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
+def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
+    conf = yakonfig.get_global_config('rejester')
+    tm = rejester.build_task_master(conf)
+    key = cbor.dumps((fid, sid))
+    wu_status = tm.get_work_unit_status('ingest', key)
+    status = wu_status['status']
+    if status in (AVAILABLE, BLOCKED, PENDING):
+        return {'state': 'pending'}
+    elif status in (FINISHED,):
+        return {'state': 'done'}
+    else:
+        return {'state': 'failed'}
+
+
 @app.post('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
-def v1_folder_extract_post(request, response, kvlclient, store, 
-                           label_store, fid, sid):
-    ## TODO: this block of code needs to move into a `coordinate` run
-    ## function and then get extended to:
+def v1_folder_extract_post(fid, sid):
+    logger.info('launching async work unit for %r', (fid, sid))
+    conf = yakonfig.get_global_config('rejester')
+    tm = rejester.build_task_master(conf)
+    tm.add_work_units('ingest', [(cbor.dumps((fid, sid)), {})])
+
+
+def rejester_run_extract(work_unit):
+    if 'config' not in work_unit.spec:
+        raise rejester.exceptions.ProgrammerError(
+            'could not run profile import without global config')
+
+    web_conf = Config()
+    unitconf = work_unit.spec['config']
+    with yakonfig.defaulted_config([rejester, kvlayer, dblogger, web_conf],
+                                   config=unitconf):
+        fid, sid = cbor.loads(work_unit.key)
+        tfidf = web_conf.tfidf
+        folders = Folders(web_conf.kvlclient)
+        fetcher = Fetcher()
+        queries = get_subfolder_queries(web_conf.store, folders, fid, sid)
+        logger.info('searching google for: %r', queries)
+        for q in queries:
+            for result in web_conf.google.web_search_with_paging(q, limit=10):
+                si = fetcher.get(result['link'])
+                cid_url = hashlib.md5(str(result['link'])).hexdigest()
+                cid = etl.interface.mk_content_id(cid_url)
+
+                # hack alert!
+                # We currently use FCs to store subtopic text data, which
+                # means we cannot overwrite existing FCs with reckless
+                # abandon. So we adopt a heuristic: check if an FC already
+                # exists, and if it does, check if it is being used to store
+                # user data. If so, don't overwrite it and move on.
+                fc = web_conf.store.get(cid)
+                if fc is not None and any(k.startswith('subtopic|')
+                                          for k in fc.iterkeys()):
+                    logger.info('skipping ingest for %r (abs url: %r) because '
+                                'an FC with user data already exists.',
+                                cid, result['link'])
+                    continue
+
+                try:
+                    fc = create_fc_from_html(
+                        result['link'], si.body.raw,
+                        encoding=si.body.encoding or 'utf-8', tfidf=tfidf)
+                    logger.info('created FC for %r (abs url: %r)',
+                                cid, result['link'])
+                    web_conf.store.put([(cid, fc)])
+                except Exception:
+                    logger.info('failed ingest on %r (abs url: %r)',
+                                cid, result['link'], exc_info=True)
+
+
+def get_subfolder_queries(store, folders, fid, sid):
+    '''Returns [unicode].
+
+    This returns a list of queries that can be passed on to "other"
+    search engines. The list of queries is derived from the subfolder
+    identified by ``fid/sid``.
+    '''
+    queries = []
+    for cid, subid, url, stype, data in subtopics(store, folders, fid, sid):
+        if stype in ('text', 'manual'):
+            queries.append(data)
+    return queries
+
+
+# I don't know how to make this code do useful things. The extractor seems
+# like a good idea, but its quality is limited to the quality of our features.
+# The best feature we have is bowNP_sip, which doesn't seem to be very good.
+#
+# Instead, I've opted to do searching based on the names of items assigned
+# by the user.
+def OLD_v1_folder_extract_post(request, response, kvlclient, store,
+                               label_store, fid, sid):
+    # TODO: this block of code needs to move into a `coordinate` run
+    # function and then get extended to:
 
     # 1) include querying the Google Custom Search API by copying/porting the
     # web2dehc/google.py
-   
+
     # 2) fetch the URLs, using code ported/copied out of
     # web2dehc/fetcher.py
 
@@ -70,19 +175,16 @@ def v1_folder_extract_post(request, response, kvlclient, store,
 
     folders = new_folders(kvlclient, request)
     ids = map(itemgetter(0), folders.items(fid, sid))
-    positive_fcs = imap(itemgetter(1), store.get_many(ids))
-    ids = negative_subtopic_labels(label_store, folders, fid, sid)
-    negative_fcs = imap(itemgetter(1), store.get_many(ids))
-    pos_words, neg_words = extract(positive_fcs, negative_fcs)
+    positive_fcs = map(itemgetter(1), store.get_many(ids))
+    negative_ids = imap(itemgetter(0),
+                        negative_subfolder_ids(label_store, folders, fid, sid))
+    negative_fcs = map(itemgetter(1), store.get_many(negative_ids))
+    pos_words, neg_words = extract(positive_fcs, negative_fcs,
+                                   features=['bowNP_sip'])
     return {'postive': dict(pos_words),
             'negative': dict(neg_words)}
 
-@app.get('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
-def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
-    ## TODO: this needs to use the python client for `coordinate` to
-    ## check on the status of the work unit defined by (fid, sid)
-    pass
-    
+
 @app.put('/dossier/v1/feature-collection/<cid>', json=True)
 def v1_fc_put(request, response, store, tfidf, cid):
     '''Store a single feature collection.
@@ -107,19 +209,19 @@ def v1_fc_put(request, response, store, tfidf, cid):
     if request.headers.get('content-type', '').startswith('text/html'):
         url = urllib.unquote(cid.split('|', 1)[1])
         fc = create_fc_from_html(url, request.body.read(), tfidf=tfidf)
-        logger.info('created FC for "%r": %r', cid, fc)
+        logger.info('created FC for %r', cid)
         store.put([(cid, fc)])
         return fc_to_json(fc)
     else:
         return routes.v1_fc_put(request, response, lambda x: x, store, cid)
 
 
-def create_fc_from_html(url, html, tfidf=None):
-    soup = BeautifulSoup(unicode(html, 'utf-8'))
+def create_fc_from_html(url, html, encoding='utf-8', tfidf=None):
+    soup = BeautifulSoup(unicode(html, encoding))
     title = soup_get(soup, 'title', lambda v: v.get_text())
     body = soup_get(soup, 'body', lambda v: v.prettify())
     fc = etl.html_to_fc(body, url=url, other_features={
-        u'title': title,
+        u'title': StringCounter([title]),
         u'titleBow': StringCounter(title.split()),
     })
     if fc is None:

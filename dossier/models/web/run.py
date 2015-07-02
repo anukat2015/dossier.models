@@ -72,11 +72,11 @@ import argparse
 import logging
 
 import bottle
-from gensim import models
 
 import dblogger
 from dossier.models.folder import Folders
 from dossier.models.pairwise import dissimilar, similar
+from dossier.models.web.config import Config
 from dossier.models.web.routes import app as models_app
 import dossier.web as web
 import kvlayer
@@ -84,29 +84,6 @@ import yakonfig
 
 
 logger = logging.getLogger(__name__)
-
-
-class Config(web.Config):
-    def __init__(self, *args, **kwargs):
-        super(Config, self).__init__(*args, **kwargs)
-        self._tfidf = None
-
-    @property
-    def config_name(self):
-        return 'dossier.models'
-
-    def normalize_config(self, config):
-        super(Config, self).normalize_config(config)
-        try:
-            tfidf_path = self.config['tfidf_path']
-        except KeyError:
-            self._tfidf = False  # service available but absent
-        else:
-            self._tfidf = models.TfidfModel.load(tfidf_path)
-
-    @property
-    def tfidf(self):
-        return self._tfidf
 
 
 class same_subfolder(web.Filter):
@@ -139,6 +116,7 @@ def get_application():
            .set_config(config)
            .enable_cors()
            .inject('tfidf', lambda: config.tfidf)
+           .inject('google', lambda: config.google)
            .add_routes(models_app)
            .add_filter('already_labeled', same_subfolder)
            .add_search_engine('similar', similar)
