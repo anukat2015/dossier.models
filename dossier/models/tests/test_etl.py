@@ -40,9 +40,14 @@ test_html = '''
                   <option value="4376">rentals
                   <option value="4375">real estate
                   <option value="4373">jobs
+</select>
+Traveling across the country to buy real estate.
+</body>
 '''
 
 def test_html_to_fc(nltk_data):
     
     fc = html_to_fc(test_html.decode('utf8'))
     assert 'Date' not in fc['meta_clean_html']
+    assert 'bowNP_unnorm' in fc
+    assert set(fc[u'bowNP_unnorm'].keys()) == set(['real estate', 'country'])
