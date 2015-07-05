@@ -32,6 +32,7 @@ import rejester
 from rejester._task_master import \
     AVAILABLE, BLOCKED, PENDING, FINISHED
 import yakonfig
+import operator
 
 
 app = bottle.Bottle()
@@ -109,10 +110,15 @@ def rejester_run_extract(work_unit):
         # This is where you can enable the keyword extractor.
         # Comment out the next two lines (`get_subfolder_queries`)
         # and uncomment the following two lines (`extract_keyword_queries`).
-        queries = get_subfolder_queries(
-            web_conf.store, web_conf.label_store, folders, fid, sid)
-        # queries = extract_keyword_queries(
+
+        # queries = get_subfolder_queries(
         #     web_conf.store, web_conf.label_store, folders, fid, sid)
+
+        queries = extract_keyword_queries(
+            web_conf.store, web_conf.label_store, folders, fid, sid)
+
+        queries = []
+
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
@@ -154,6 +160,7 @@ def get_subfolder_queries(store, label_store, folders, fid, sid):
     identified by ``fid/sid``.
     '''
     queries = []
+
     for cid, subid, url, stype, data in subtopics(store, folders, fid, sid):
         if stype in ('text', 'manual'):
             queries.append(data)
@@ -166,19 +173,108 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     negative_ids = imap(itemgetter(0),
                         negative_subfolder_ids(label_store, folders, fid, sid))
     negative_fcs = map(itemgetter(1), store.get_many(negative_ids))
+
+    ## GPE seems like a good feature to use
     pos_words, neg_words = extract(positive_fcs, negative_fcs,
-                                   features=['bowNP_sip'])
-    # Stupidly limit it to 5 keywords for now, so that we don't spawn a huge
-    # number of Google searches.
-    return (pos_words.keys() + neg_words.keys())[0:5]
+                                   features=['GPE'])
+
+    ## so my assumption is that fid is the `name' of the entity in question
+    ## or, more generally, the standard query to be executed
+    ## i know this is slightly different than what andrew assumed
+    ## but i think it makes sense for the annotated version of this task
+
+    query_names = fid.split('_')
+    ## quotes added so that google treats the name as one token
+    original_query = '\"' + ' '.join(query_names) + '\"'
+    logger.info('the original query was %s', original_query)
+
+    ## return five queries with the original_query name, 
+    ## 0. the original name --- the pairwise model will eliminate if bad
+    ##    but it seems like it's a mistake to omit
+    ## 1. plus the most predictive keyword
+    ## 2. minus the least predictive keyword
+    ## 3. minus the most predictive keyword for the negative class
+    ## 4. plus the least predictive keyword for the negative class
+
+    ## additionally, if any of these words are the name, we skip to the 
+    ## next keyword in the list
+
+    queries = []
+
+    ## 0. original name
+    queries.append(original_query)
+
+    ## 1. plus the most predictive keyword
+    query_plus_pred = original_query + ' ' + \
+                                name_filter(pos_words, query_names)
+    logger.info('query 1: + most predictive %s', query_plus_pred)
+    queries.append(query_plus_pred)
+
+    ## 2. minus the least predictive keyword
+    query_min_least = original_query + ' -' + \
+                                name_filter(reversed(pos_words), query_names)
+    logger.info('query 2: - least predictive %s', query_min_least)
+    queries.append(query_min_least)
+
+    ## 3. minus the most predictive keyword for the negative class
+    query_min_most_neg = original_query + ' -' + \
+                                name_filter(neg_words, query_names)
+    logger.info('query 3: - most predictive for neg %s', query_min_most_neg)
+    queries.append(query_min_most_neg)
+
+    ## 4. plus the least predictive keyword for the negative class
+    query_plus_least_neg = original_query + ' ' + \
+                                name_filter(reversed(neg_words), query_names)
+    logger.info('query 4: + least predictive for neg %s', query_plus_least_neg)
+    queries.append(query_plus_least_neg)
 
 
-# I don't know how to make this code do useful things. The extractor seems
-# like a good idea, but its quality is limited to the quality of our features.
-# The best feature we have is bowNP_sip, which doesn't seem to be very good.
-#
-# Instead, I've opted to do searching based on the names of items assigned
-# by the user.
+
+    # logger.info('length %d', len(positive_fcs))
+
+    # for fc in positive_fcs:
+    #     logger.info('pos fc %r', fc['title'])
+    
+
+    # logger.info('pos fc %r', positive_fcs[3]['GPE'])
+
+    # logger.info('pos fc %r', positive_fcs[3].keys())
+    # logger.info('pos fc %r', positive_fcs[3]['PERSON'])
+
+    # logger.info('positive keywords: %r', pos_words)
+    # logger.info('negative keywords: %r', neg_words)
+
+    # logger.info('most positive keyword: %r', pos_words[0])
+
+
+    return queries
+
+def name_filter(keywords, names):
+    '''
+    Returns the first keyword from the list, unless
+    that keyword is one of the names in names, in which case
+    it continues to the next keyword. 
+
+    Since keywords consists of tuples, it just returns the first
+    element of the tuple, the keyword. It also adds double
+    quotes around the keywords, as is appropriate for google queries.
+
+    Input Arguments:
+    keywords -- a list of (keyword, strength) tuples
+    names -- a list of names to be skipped
+    '''
+    name_set = set(name.lower() for name in names)
+
+    for key_tuple in keywords:
+        if not key_tuple[0] in name_set:
+            return '\"' + key_tuple[0] +'\"'
+
+    ## returns empty string if we run out, which we shouldn't
+    return ''
+
+
+
+
 def OLD_v1_folder_extract_post(request, response, kvlclient, store,
                                label_store, fid, sid):
     # TODO: this block of code needs to move into a `coordinate` run
