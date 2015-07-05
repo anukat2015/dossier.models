@@ -50,7 +50,7 @@ def extract(positive_fcs, negative_fcs, features=None):
        the underlying keys of the set of selected features features.
        If no features are selected, all are used.
 
-       Returns two Counters of keywords weighted by strength. The
+       Returns two list of (keywords, strength) tuples ordered by strength. The
        first are feature keys that were predictive of the positive
        label and the second are the feature keys are were predictive
        of the negative label. 
@@ -91,8 +91,17 @@ def extract(positive_fcs, negative_fcs, features=None):
     # and negative class
     positive_keywords = v.inverse_transform(clf.feature_log_prob_[1])[0]
     negative_keywords = v.inverse_transform(clf.feature_log_prob_[0])[0]
+
+    pos_words = Counter(positive_keywords)
+    neg_words = Counter(negative_keywords)
+
+    ## make a list ordered by their weight
+    pos_ordered = sorted(pos_words.items(), 
+                            key=operator.itemgetter(1), reverse=True)
+    neg_ordered = sorted(neg_words.items(), 
+                            key=operator.itemgetter(1), reverse=True)
     
-    return Counter(positive_keywords), Counter(negative_keywords)
+    return pos_ordered, neg_ordered
 
 if __name__ == '__main__':
     '''This can be used to test this code on features collections created
