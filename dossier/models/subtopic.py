@@ -34,7 +34,7 @@ def subtopics(store, folders, folder_id, subfolder_id, ann_id=None):
     # require this code to make more FC fetches, but we should be able to
     # do it with one `store.get_many` call.
     items = folders.grouped_items(folder_id, subfolder_id, ann_id=ann_id)
-    fcs = {cid: fc for cid, fc in store.get_many(items.keys())}
+    fcs = dict([(cid, fc) for cid, fc in store.get_many(items.keys())])
     for cid, subids in items.iteritems():
         fc = fcs[cid]
         for subid in subids:

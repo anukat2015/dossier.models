@@ -85,7 +85,7 @@ def test_canopy(pairwise):
     pairwise.query_fc = pairwise.store.get(pairwise.query_content_id)
     canopy = pairwise.canopy()
     # N.B. Doesn't include the query!
-    assert {cid for cid, _ in canopy} == {'abc', 'mno'}
+    assert set([cid for cid, _ in canopy]) == set(['abc', 'mno'])
 
 
 def test_canopy_limit(pairwise):
@@ -118,12 +118,12 @@ def test_labels(pairwise):
     pairwise.label_store.put(pos_label('y', 'z'))
 
     fs = lambda *args: frozenset(args)
-    got = {fs(lab.content_id1, lab.content_id2)
-           for lab in pairwise.labels_from_query()}
-    assert got == {
+    got = set([fs(lab.content_id1, lab.content_id2)
+               for lab in pairwise.labels_from_query()])
+    assert got == set([
         fs('q', 'a'), fs('a', 'b'),
         fs('q', 'b'),  # <-- label expansion!
-    }
+    ])
 
 
 def test_label_limit(pairwise):
@@ -134,8 +134,8 @@ def test_label_limit(pairwise):
     pairwise.label_store.put(neg_label('y', 'z'))
 
     fs = lambda *args: frozenset(args)
-    got = {fs(lab.content_id1, lab.content_id2)
-           for lab in pairwise.labels_from_query(limit=2)}
+    got = set([fs(lab.content_id1, lab.content_id2)
+               for lab in pairwise.labels_from_query(limit=2)])
     assert len(got) <= 2 * 2
 
 
@@ -249,7 +249,7 @@ def test_classify(pairwise):
     pairwise.label_store.put(pos_label('q', 'b'))
 
     candidate_probs = pairwise.probabilities()
-    id_to_prob = {cid: p for (cid, _), p in candidate_probs}
+    id_to_prob = dict([(cid, p) for (cid, _), p in candidate_probs])
 
     # This is a little silly, but it at least makes sure that an obvious
     # negative example is ranked below other obvious positive examples.
