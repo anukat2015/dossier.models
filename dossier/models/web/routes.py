@@ -117,8 +117,6 @@ def rejester_run_extract(work_unit):
         queries = extract_keyword_queries(
             web_conf.store, web_conf.label_store, folders, fid, sid)
 
-        queries = []
-
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
@@ -188,7 +186,7 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     original_query = '\"' + ' '.join(query_names) + '\"'
     logger.info('the original query was %s', original_query)
 
-    ## return five queries with the original_query name, 
+    ## return five queries with the original_query name,
     ## 0. the original name --- the pairwise model will eliminate if bad
     ##    but it seems like it's a mistake to omit
     ## 1. plus the most predictive keyword
@@ -196,7 +194,7 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     ## 3. minus the most predictive keyword for the negative class
     ## 4. plus the least predictive keyword for the negative class
 
-    ## additionally, if any of these words are the name, we skip to the 
+    ## additionally, if any of these words are the name, we skip to the
     ## next keyword in the list
 
     queries = []
@@ -234,7 +232,7 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
 
     # for fc in positive_fcs:
     #     logger.info('pos fc %r', fc['title'])
-    
+
 
     # logger.info('pos fc %r', positive_fcs[3]['GPE'])
 
@@ -253,7 +251,7 @@ def name_filter(keywords, names):
     '''
     Returns the first keyword from the list, unless
     that keyword is one of the names in names, in which case
-    it continues to the next keyword. 
+    it continues to the next keyword.
 
     Since keywords consists of tuples, it just returns the first
     element of the tuple, the keyword. It also adds double
