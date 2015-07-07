@@ -121,6 +121,7 @@ def rejester_run_extract(work_unit):
             web_conf.store, web_conf.label_store, folders, fid, sid)
 
         link2queries = defaultdict(set)
+
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
