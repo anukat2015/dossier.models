@@ -14,6 +14,7 @@ database, but it will be generalized as part of future work.)
 from __future__ import absolute_import, division, print_function
 
 import abc
+from itertools import chain
 import json
 import logging
 import time
@@ -163,7 +164,11 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
 
     add_feature(u'phone', features.phones(clean_visible))
     add_feature(u'email', features.emails(clean_visible))
-    add_feature(u'bowNP', features.noun_phrases(cleanse(clean_visible)))
+    bowNP, normalizations = features.noun_phrases(
+        cleanse(clean_visible), included_unnormalized=True)
+    add_feature(u'bowNP', bowNP)
+    bowNP_unnorm = chain(*normalizations.values())
+    add_feature(u'bowNP_unnorm', bowNP_unnorm)
 
     add_feature(u'image_url', features.image_urls(clean_html))
     add_feature(u'a_url', features.a_urls(clean_html))
