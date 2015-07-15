@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+from collections import defaultdict
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -14,16 +15,18 @@ import urllib
 from bs4 import BeautifulSoup
 import bottle
 import cbor
+import json
+from streamcorpus_pipeline import cleanse
 
 import dblogger
-from dossier.fc import StringCounter
+from dossier.fc import StringCounter, FeatureCollection
 from dossier.models import etl
 from dossier.models.extractor import extract
 from dossier.models.folder import Folders
 from dossier.models.openquery.fetcher import Fetcher
 from dossier.models.pairwise import negative_subfolder_ids
 from dossier.models.report import ReportGenerator
-from dossier.models.subtopic import subtopics
+from dossier.models.subtopic import subtopics, subtopic_type, typed_subtopic_data
 from dossier.models.web.config import Config
 import dossier.web.routes as routes
 from dossier.web.util import fc_to_json
@@ -117,39 +120,53 @@ def rejester_run_extract(work_unit):
         queries = extract_keyword_queries(
             web_conf.store, web_conf.label_store, folders, fid, sid)
 
-        queries = []
+        # queries = []
 
+        link2queries = defaultdict(set)
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
-                si = fetcher.get(result['link'])
-                cid_url = hashlib.md5(str(result['link'])).hexdigest()
-                cid = etl.interface.mk_content_id(cid_url)
+                map(link2queries[result['link']].add, cleanse(q.decode('utf8')).split())
 
-                # hack alert!
-                # We currently use FCs to store subtopic text data, which
-                # means we cannot overwrite existing FCs with reckless
-                # abandon. So we adopt a heuristic: check if an FC already
-                # exists, and if it does, check if it is being used to store
-                # user data. If so, don't overwrite it and move on.
-                fc = web_conf.store.get(cid)
-                if fc is not None and any(k.startswith('subtopic|')
-                                          for k in fc.iterkeys()):
-                    logger.info('skipping ingest for %r (abs url: %r) because '
-                                'an FC with user data already exists.',
-                                cid, result['link'])
-                    continue
+        result = None
 
-                try:
-                    fc = create_fc_from_html(
-                        result['link'], si.body.raw,
-                        encoding=si.body.encoding or 'utf-8', tfidf=tfidf)
-                    logger.info('created FC for %r (abs url: %r)',
-                                cid, result['link'])
-                    web_conf.store.put([(cid, fc)])
-                except Exception:
-                    logger.info('failed ingest on %r (abs url: %r)',
-                                cid, result['link'], exc_info=True)
+        logger.info('got %d URLs from %d queries', len(link2queries), len(queries))
+
+        for link, queries in link2queries.items():
+            si = fetcher.get(link)
+            cid_url = hashlib.md5(str(link)).hexdigest()
+            cid = etl.interface.mk_content_id(cid_url)
+
+            # hack alert!
+            # We currently use FCs to store subtopic text data, which
+            # means we cannot overwrite existing FCs with reckless
+            # abandon. So we adopt a heuristic: check if an FC already
+            # exists, and if it does, check if it is being used to store
+            # user data. If so, don't overwrite it and move on.
+            fc = web_conf.store.get(cid)
+            if fc is not None and any(k.startswith('subtopic|')
+                                      for k in fc.iterkeys()):
+                logger.info('skipping ingest for %r (abs url: %r) because '
+                            'an FC with user data already exists.',
+                            cid, link)
+                continue
+
+            other_features = {
+                u'keywords': StringCounter(list(queries)),
+            }
+
+            try:
+                fc = create_fc_from_html(
+                    link, si.body.raw,
+                    encoding=si.body.encoding or 'utf-8', tfidf=tfidf,
+                    other_features=other_features,
+                )
+                logger.info('created FC for %r (abs url: %r)',
+                            cid, link)
+                web_conf.store.put([(cid, fc)])
+            except Exception:
+                logger.info('failed ingest on %r (abs url: %r)',
+                            cid, link, exc_info=True)
 
 
 def get_subfolder_queries(store, label_store, folders, fid, sid):
@@ -329,17 +346,34 @@ def v1_fc_put(request, response, store, tfidf, cid):
         store.put([(cid, fc)])
         return fc_to_json(fc)
     else:
-        return routes.v1_fc_put(request, response, lambda x: x, store, cid)
+        fc = FeatureCollection.from_dict(json.load(request.body))
+        keywords = set()
+        for subid in fc:
+            if subid.startswith('subtopic'):
+                ty = subtopic_type(subid)
+                if ty in ('text', 'manual'):
+                    # get the user selected string
+                    data = typed_subtopic_data(fc, subid)
+                    map(keywords.add, cleanse(data).split())
+
+        fc[u'keywords'] = StringCounter(keywords)
+        store.put([(cid, fc)])
+        response.status = 201
+
+        #return routes.v1_fc_put(request, response, lambda x: x, store, cid)
 
 
-def create_fc_from_html(url, html, encoding='utf-8', tfidf=None):
+def create_fc_from_html(url, html, encoding='utf-8', tfidf=None, other_features=None):
     soup = BeautifulSoup(unicode(html, encoding))
     title = soup_get(soup, 'title', lambda v: v.get_text())
     body = soup_get(soup, 'body', lambda v: v.prettify())
-    fc = etl.html_to_fc(body, url=url, other_features={
+    if other_features is None:
+        other_features = {}
+    other_features.update({
         u'title': StringCounter([title]),
         u'titleBow': StringCounter(title.split()),
     })
+    fc = etl.html_to_fc(body, url=url, other_features=other_features)
     if fc is None:
         return None
     if tfidf is not None:
