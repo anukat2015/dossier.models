@@ -23,9 +23,11 @@ from streamcorpus_pipeline._pipeline import PipelineFactory
 from dossier.fc import FeatureCollectionChunk as FCChunk
 from dossier.fc import FeatureCollection, StringCounter
 
-
 import operator
-from collections import Counter
+try:
+    from collections import Counter, defaultdict
+except ImportError:
+    from backport_collections import Counter, defaultdict
 
 import numpy as np
 from sklearn.feature_extraction import DictVectorizer

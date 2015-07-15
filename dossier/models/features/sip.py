@@ -8,9 +8,9 @@ phrases (SIPs) used to create features in FCs.
 from __future__ import absolute_import, division, print_function
 
 try:
-    from collections import Counter
+    from collections import Counter, defaultdict
 except ImportError:
-    from backport_collections import Counter
+    from backport_collections import Counter, defaultdict
 
 import nltk
 from nltk.corpus import stopwords
@@ -24,15 +24,17 @@ def sip_noun_phrases(tfidf, noun_phrases, limit=40):
                  for word, count in Counter(dict(bow)).most_common(limit)])
 
 
-def noun_phrases(text):
-    '''Generate a bag of normalized stemmed noun phrases from ``text``.
+def noun_phrases_as_tokens(text):
+    '''Generate a bag of lists of unnormalized tokens representing noun
+    phrases from ``text``.
 
     This is built around python's nltk library for getting Noun
     Phrases (NPs). This is all documented in the NLTK Book
     http://www.nltk.org/book/ch03.html and blog posts that cite the
     book.
 
-    :rtype: list of phrase strings with spaces replaced by ``_``.
+    :rtype: list of lists of strings
+
     '''
     ## from NLTK Book:
     sentence_re = r'''(?x)      # set flag to allow verbose regexps
@@ -42,9 +44,6 @@ def noun_phrases(text):
         | \.\.\.                # ellipsis
         | [][.,;"'?():-_`]      # these are separate tokens
     '''
-
-    lemmatizer = nltk.WordNetLemmatizer()
-    stemmer = nltk.stem.porter.PorterStemmer()
 
     ## From Su Nam Kim paper:
     ## http://www.comp.nus.edu.sg/~kanmy/papers/10.1007_s10579-012-9210-3.pdf
@@ -77,19 +76,41 @@ def noun_phrases(text):
         for subtree in tree.subtrees(filter = lambda t: t.label()=='NP'):
             yield subtree.leaves()
 
-    def normalise(word):
-        '''Normalises words to lowercase and stems and lemmatizes it.'''
-        word = word.lower()
-        word = stemmer.stem_word(word)
-        word = lemmatizer.lemmatize(word)
-        return word
-
     def acceptable_word(word):
         '''Checks conditions for acceptable word: length, stopword.'''
         return 2 <= len(word) <= 40 and word.lower() not in stops
 
     def get_terms(tree):
         for leaf in leaves(tree):
-            yield [normalise(w) for w,t in leaf if acceptable_word(w)]
+            yield [w for w,t in leaf if acceptable_word(w)]
 
-    return ['_'.join(term) for term in get_terms(tree)]
+    return list(get_terms(tree))
+
+
+def noun_phrases(text, included_unnormalized=False):
+    '''applies normalization to the terms found by noun_phrases_as_tokens
+    and joins on '_'.
+
+    :rtype: list of phrase strings with spaces replaced by ``_``.
+
+    '''
+    lemmatizer = nltk.WordNetLemmatizer()
+    stemmer = nltk.stem.porter.PorterStemmer()
+
+    def normalize(word):
+        '''Normalises words to lowercase and stems and lemmatizes it.'''
+        word = word.lower()
+        word = stemmer.stem_word(word)
+        word = lemmatizer.lemmatize(word)
+        return word
+
+    normalizations = defaultdict(list)
+    for terms in noun_phrases_as_tokens(text):
+        key = u'_'.join(map(normalize, terms))
+        normalizations[key].append(u' '.join(terms))
+
+    if included_unnormalized:
+        return normalizations.keys(), normalizations
+    else:
+        return normalizations.keys()
+
