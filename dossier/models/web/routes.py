@@ -251,7 +251,7 @@ def rejester_run_extract(work_unit):
         data = json.dumps({'content_ids': content_ids})
         logger.info('saving %d content_ids', len(content_ids))
         web_conf.kvlclient.put('openquery', ((work_unit.key,), data))
-        loggerinfo('done saving for %r', work_unit.key)
+        logger.info('done saving for %r', work_unit.key)
 
 def get_subfolder_queries(store, label_store, folders, fid, sid):
     '''Returns [unicode].
