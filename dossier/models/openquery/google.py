@@ -56,6 +56,8 @@ class Google(object):
         Google's Custom Search API.  Returns a deserialized result set.
         '''
         tries = 0
+        if isinstance(query, unicode):
+            query = query.encode('utf8')
         url = self.url % dict(key=self.api_key,
                               query=urllib.quote(query.strip()),
                               num=min(10, limit - start),
