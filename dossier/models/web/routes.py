@@ -140,8 +140,7 @@ def v1_folder_extract_post(fid, sid):
     tm = rejester.build_task_master(conf)
     key = cbor.dumps((fid, sid))
     wu_status = tm.get_work_unit_status('ingest', key)
-    status = wu_status['status']
-    if status in (AVAILABLE, BLOCKED, PENDING):
+    if wu_status and wu_status['status'] in (AVAILABLE, BLOCKED, PENDING):
         return {'state': 'pending'}
     else:
         logger.info('launching async work unit for %r', (fid, sid))
