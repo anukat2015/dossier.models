@@ -115,18 +115,40 @@ def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
     if status in (AVAILABLE, BLOCKED, PENDING):
         return {'state': 'pending'}
     elif status in (FINISHED,):
-        return {'state': 'done'}
+        kvlclient.setup_namespace({'openquery': (str,)})
+        data = None
+        try:
+            data = list(kvlclient.get('openquery', (key,)))
+            assert len(data) == 1, data
+            logger.info('got data of len 1: %r', data)
+            data = data[0][1]
+            assert data, 'how did we get no data?'
+            data = json.loads(data)
+            data['state'] = 'done'
+            return data
+        except:
+            logger.error('Failed to get openquery data: %r', data, exc_info=True)
+            return {'state': 'failed'}
+
     else:
         return {'state': 'failed'}
 
 
 @app.post('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
 def v1_folder_extract_post(fid, sid):
-    logger.info('launching async work unit for %r', (fid, sid))
     conf = yakonfig.get_global_config('rejester')
     tm = rejester.build_task_master(conf)
-    tm.add_work_units('ingest', [(cbor.dumps((fid, sid)), {})])
-
+    key = cbor.dumps((fid, sid))
+    wu_status = tm.get_work_unit_status('ingest', key)
+    status = wu_status['status']
+    if status in (AVAILABLE, BLOCKED, PENDING):
+        return {'state': 'pending'}
+    else:
+        logger.info('launching async work unit for %r', (fid, sid))
+        conf = yakonfig.get_global_config('rejester')
+        tm = rejester.build_task_master(conf)
+        tm.add_work_units('ingest', [(cbor.dumps((fid, sid)), {})])
+        return {'state': 'submitted'}
 
 def rejester_run_extract(work_unit):
     if 'config' not in work_unit.spec:
@@ -137,6 +159,19 @@ def rejester_run_extract(work_unit):
     unitconf = work_unit.spec['config']
     with yakonfig.defaulted_config([rejester, kvlayer, dblogger, web_conf],
                                    config=unitconf):
+
+        web_conf.kvlclient.setup_namespace({'openquery': (str,)})
+        try:
+            data = list(web_conf.kvlclient.get('openquery', (work_unit.key,)))
+            if data:
+                if data[0][1]:
+                    logger.info('found existing query results: %r', data)
+                    return
+                else:
+                    web_conf.kvlclient.delete('openquery', (work_unit.key,))
+        except:
+            logger.error('failed to get data from existing table', exc_info=True)
+
         fid, sid = cbor.loads(work_unit.key)
         tfidf = web_conf.tfidf
         folders = Folders(web_conf.kvlclient)
@@ -173,12 +208,14 @@ def rejester_run_extract(work_unit):
         #logger.info('got %d URLs from %d queries', len(link2queries), len(queries))
         logger.info('got %d URLs from %d queries', len(links), len(queries))
 
+        content_ids = []
         #for link, queries in link2queries.items():
         for link in links:
             si = fetcher.get(link)
             if si is None: continue
             cid_url = hashlib.md5(str(link)).hexdigest()
             cid = etl.interface.mk_content_id(cid_url)
+            content_ids.append(cid)
 
             # hack alert!
             # We currently use FCs to store subtopic text data, which
@@ -211,6 +248,10 @@ def rejester_run_extract(work_unit):
                 logger.info('failed ingest on %r (abs url: %r)',
                             cid, link, exc_info=True)
 
+        data = json.dumps({'content_ids': content_ids})
+        logger.info('saving %d content_ids', len(content_ids))
+        web_conf.kvlclient.put('openquery', ((work_unit.key,), data))
+        loggerinfo('done saving for %r', work_unit.key)
 
 def get_subfolder_queries(store, label_store, folders, fid, sid):
     '''Returns [unicode].
