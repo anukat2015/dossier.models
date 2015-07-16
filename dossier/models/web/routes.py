@@ -33,7 +33,7 @@ from dossier.web.util import fc_to_json
 import kvlayer
 import rejester
 from rejester._task_master import \
-    AVAILABLE, BLOCKED, PENDING, FINISHED
+    AVAILABLE, BLOCKED, PENDING, FINISHED, FAILED
 import yakonfig
 import operator
 
@@ -57,6 +57,38 @@ def example_sortingdesk():
 @app.get('/static/<name:path>')
 def v1_static(name):
     return bottle.static_file(name, root=web_static_path)
+
+
+DRAGNET_KEY = 'only-one-dragnet'
+
+@app.post('/dossier/v1/dragnet')
+def v1_dragnet():
+    status = dragnet_status()
+    if not status or status in (FINISHED, FAILED):
+        logger.info('launching dragnet async work unit')
+        conf = yakonfig.get_global_config('rejester')
+        tm = rejester.build_task_master(conf)
+        tm.add_work_units('dragnet', [(DRAGNET_KEY, {})])
+
+@app.get('/dossier/v1/dragnet')
+def v1_dragnet(kvlclient):
+    status = dragnet_status()
+    if status == PENDING:
+        return {'state': 'pending'}
+    else:
+        kvlclient.setup_namespace({'dragnet': (str,)})
+        data = list(kvlclient.get('dragnet', ('dragnet',)))
+        if data[0][1]:
+            logger.info(data)
+            return json.loads(data[0][1])
+
+def dragnet_status():
+    conf = yakonfig.get_global_config('rejester')
+    tm = rejester.build_task_master(conf)
+    wu_status = tm.get_work_unit_status('dragnet', DRAGNET_KEY)
+    if not wu_status: return None
+    status = wu_status['status']
+    return status
 
 
 @app.get('/dossier/v1/folder/<fid>/report')
@@ -99,7 +131,7 @@ def v1_folder_extract_post(fid, sid):
 def rejester_run_extract(work_unit):
     if 'config' not in work_unit.spec:
         raise rejester.exceptions.ProgrammerError(
-            'could not run profile import without global config')
+            'could not run extraction without global config')
 
     web_conf = Config()
     unitconf = work_unit.spec['config']
@@ -117,21 +149,34 @@ def rejester_run_extract(work_unit):
         # queries = get_subfolder_queries(
         #     web_conf.store, web_conf.label_store, folders, fid, sid)
 
-        queries = extract_keyword_queries(
+        queries, keyword_feature_keys, has_observations = extract_keyword_queries(
             web_conf.store, web_conf.label_store, folders, fid, sid)
 
-        link2queries = defaultdict(set)
+        keywords = set()
+        for key in keyword_feature_keys:
+            ckey = cleanse(key.decode('utf8'))
+            keywords.add(ckey)
+            for part in ckey.split():
+                keywords.add(part)
+
+        #link2queries = defaultdict(set)
+        links = set()
         logger.info('searching google for: %r', queries)
         for q in queries:
             for result in web_conf.google.web_search_with_paging(q, limit=10):
-                map(link2queries[result['link']].add, cleanse(q.decode('utf8')).split())
+                links.add(result['link'])
+                #map(link2queries[result['link']].add, cleanse(q.decode('utf8')).split())
+                logger.info('discovered %r', result['link'])
 
         result = None
 
-        logger.info('got %d URLs from %d queries', len(link2queries), len(queries))
+        #logger.info('got %d URLs from %d queries', len(link2queries), len(queries))
+        logger.info('got %d URLs from %d queries', len(links), len(queries))
 
-        for link, queries in link2queries.items():
+        #for link, queries in link2queries.items():
+        for link in links:
             si = fetcher.get(link)
+            if si is None: continue
             cid_url = hashlib.md5(str(link)).hexdigest()
             cid = etl.interface.mk_content_id(cid_url)
 
@@ -150,7 +195,7 @@ def rejester_run_extract(work_unit):
                 continue
 
             other_features = {
-                u'keywords': StringCounter(list(queries)),
+                u'keywords': StringCounter(keywords), #list(queries)),
             }
 
             try:
@@ -183,15 +228,8 @@ def get_subfolder_queries(store, label_store, folders, fid, sid):
 
 
 def extract_keyword_queries(store, label_store, folders, fid, sid):
-    ids = map(itemgetter(0), folders.items(fid, sid))
-    positive_fcs = map(itemgetter(1), store.get_many(ids))
-    negative_ids = imap(itemgetter(0),
-                        negative_subfolder_ids(label_store, folders, fid, sid))
-    negative_fcs = map(itemgetter(1), store.get_many(negative_ids))
 
-    ## GPE seems like a good feature to use
-    pos_words, neg_words = extract(positive_fcs, negative_fcs,
-                                   features=['GPE'])
+    keyword_feature_keys = [] #pos_words
 
     ## so my assumption is that fid is the `name' of the entity in question
     ## or, more generally, the standard query to be executed
@@ -200,7 +238,9 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
 
     query_names = fid.split('_')
     ## quotes added so that google treats the name as one token
-    original_query = '\"' + ' '.join(query_names) + '\"'
+    name1 = ' '.join(query_names)
+    keyword_feature_keys.append(name1)
+    original_query = '\"' + name1  + '\"'
     logger.info('the original query was %s', original_query)
 
     ## return five queries with the original_query name,
@@ -218,6 +258,25 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
 
     ## 0. original name
     queries.append(original_query)
+
+    if sid:
+        name2 = ' '.join(sid.split('_'))
+        keyword_feature_keys.append(name2)
+        queries.append( '\"' + name2 + '\"' )
+
+    try:
+        ids = map(itemgetter(0), folders.items(fid, sid))
+    except KeyError:
+        return queries, keyword_feature_keys, False
+
+    positive_fcs = map(itemgetter(1), store.get_many(ids))
+    negative_ids = imap(itemgetter(0),
+                        negative_subfolder_ids(label_store, folders, fid, sid))
+    negative_fcs = map(itemgetter(1), store.get_many(negative_ids))
+
+    ## GPE seems like a good feature to use, related entities are interesting too
+    pos_words, neg_words = extract(positive_fcs, negative_fcs,
+                                   features=['GPE', 'PERSON', 'ORGANIZATION'])
 
     ## 1. plus the most predictive keyword
     query_plus_pred = original_query + ' ' + \
@@ -262,7 +321,8 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     # logger.info('most positive keyword: %r', pos_words[0])
 
 
-    return queries
+    return queries, keyword_feature_keys, True
+
 
 def name_filter(keywords, names):
     '''
@@ -317,7 +377,7 @@ def OLD_v1_folder_extract_post(request, response, kvlclient, store,
 
 
 @app.put('/dossier/v1/feature-collection/<cid>', json=True)
-def v1_fc_put(request, response, store, tfidf, cid):
+def v1_fc_put(request, response, store, kvlclient, tfidf, cid):
     '''Store a single feature collection.
 
     The route for this endpoint is:
@@ -353,6 +413,12 @@ def v1_fc_put(request, response, store, tfidf, cid):
                     # get the user selected string
                     data = typed_subtopic_data(fc, subid)
                     map(keywords.add, cleanse(data).split())
+                    keywords.add(cleanse(data))
+
+        folders = Folders(kvlclient)
+        for fid, sid in folders.parent_subfolders(cid):
+            keywords.add(cleanse(fid.decode('utf8')))
+            keywords.add(cleanse(sid.decode('utf8')))
 
         fc[u'keywords'] = StringCounter(keywords)
         store.put([(cid, fc)])
@@ -392,3 +458,4 @@ def new_folders(kvlclient, request):
     if 'annotator_id' in request.query:
         conf['owner'] = request.query['annotator_id']
     return Folders(kvlclient, **conf)
+
