@@ -304,7 +304,8 @@ class PairwiseFeatureLearner(object):
                                      for i, name in enumerate(feature_names)])
         return feature_names, model, vec
 
-    def classify(self, feature_names, classifier, transformer, candidates):
+    def classify(self, feature_names, classifier, transformer, candidates,
+                 query_fc=None):
         '''Returns ``[probability]`` in correspondence with
         ``candidates``.
 
@@ -319,10 +320,12 @@ class PairwiseFeatureLearner(object):
         bundling ``feature_names``, ``classifier`` and ``transformer``
         into one thing known as "the model." ---AG
         '''
+        if query_fc is None:
+            query_fc = self.query_fc
         dis = {}
         for name in feature_names:
             vec = dict_vector()
-            query = vec.fit_transform([get_feat(self.query_fc, name)])
+            query = vec.fit_transform([get_feat(query_fc, name)])
             cans = vec.transform(get_feat(fc, name) for _, fc in candidates)
             dis[name] = 1 - pairwise_distances(
                 cans, query, metric='cosine', n_jobs=1)[:,0]
