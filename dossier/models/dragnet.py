@@ -78,16 +78,20 @@ def rejester_run_dragnet(work_unit):
                     labels.append(idx)
                     rejects.update(_rejects)
                     keepers.update(_keepers)
+                    logger.info('observation: %r', cid)
 
         # Convert the list of Counters into an sklearn compatible format
+        logger.info('transforming...')
         v = DictVectorizer(sparse=False)
         X = v.fit_transform(D)
+        logger.info('transform fit done.')
 
         labels = np.array(labels)
 
         # Fit the sklearn Bernoulli Naive Bayes classifer
         clf = MultinomialNB()
         clf.fit(X, labels)
+        logger.info('fit MultinomialNB')
 
         counts = Counter()
         for cid, fc in web_conf.store.scan():
@@ -96,10 +100,17 @@ def rejester_run_dragnet(work_unit):
             target = clf.predict(X[0])[0]
             counts[label2fid[target]] += 1
 
+        logger.info('counts done')
+
         # Extract the learned features that are predictive
         clusters = []
         for idx in sorted(set(labels)):
-            all_features = v.inverse_transform(clf.feature_log_prob_[idx])[0]
+            logger.info('considering cluster: %d', idx)
+            try:
+                all_features = v.inverse_transform(clf.feature_log_prob_[idx])[0]
+            except: 
+                logger.info('beyond edge')
+                continue
             words = Counter(all_features)
             ordered = sorted(words.items(), 
                              key=operator.itemgetter(1), reverse=True)
