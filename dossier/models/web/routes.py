@@ -69,6 +69,9 @@ def v1_dragnet():
         conf = yakonfig.get_global_config('rejester')
         tm = rejester.build_task_master(conf)
         tm.add_work_units('dragnet', [(DRAGNET_KEY, {})])
+        return {'state': 'submitted'}
+    else:
+        return {'state': 'pending'}
 
 @app.get('/dossier/v1/dragnet')
 def v1_dragnet(kvlclient):
@@ -79,8 +82,10 @@ def v1_dragnet(kvlclient):
         kvlclient.setup_namespace({'dragnet': (str,)})
         data = list(kvlclient.get('dragnet', ('dragnet',)))
         if data[0][1]:
-            logger.info(data)
+            #logger.info(data)
             return json.loads(data[0][1])
+        else:
+            return {'state': 'failed'}
 
 def dragnet_status():
     conf = yakonfig.get_global_config('rejester')
