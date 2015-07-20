@@ -59,7 +59,7 @@ setup(
         'beautifulsoup4',
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
-        'dossier.web >= 0.7.8',
+        'dossier.web >= 0.7.12',
         'gensim',
         'happybase',
         'joblib',
