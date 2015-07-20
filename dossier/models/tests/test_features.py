@@ -81,3 +81,12 @@ def test_path_dirs():
         'folder3': 3,
         'index.html': 3,
     })
+
+def test_entity_names(example_fc, nltk_data):
+    '''test for the `entity_names` transform
+    '''
+    xform = features.entity_names()
+    fc = xform.process(example_fc)
+    assert u'PERSON' in fc, fc.keys()
+    assert u'craig winton' in fc[u'PERSON']
+    #print(json.dumps(dict(fc), indent=4))
