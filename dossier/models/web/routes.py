@@ -284,7 +284,7 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     query_names = fid.split('_')
     ## quotes added so that google treats the name as one token
     name1 = ' '.join(query_names)
-    keyword_feature_keys.append(name1)
+    #keyword_feature_keys.append(name1)
     original_query = '\"' + name1  + '\"'
     logger.info('the original query was %s', original_query)
 
@@ -302,7 +302,7 @@ def extract_keyword_queries(store, label_store, folders, fid, sid):
     queries = []
 
     ## 0. original name
-    queries.append(original_query)
+    #queries.append(original_query)
 
     if sid:
         name2 = ' '.join(sid.split('_'))
