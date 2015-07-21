@@ -76,9 +76,13 @@ def extract(positive_fcs, negative_fcs, features=None):
     for fc in (positive_fcs + negative_fcs):
         feat = StringCounter()
 
-        # The features used to pull the keys for the classifier
-        for f in features:
-            feat += fc[f]
+        if not fc:
+            logger.warn('how did we get an empty fc? %r', fc)
+            
+        else:
+            # The features used to pull the keys for the classifier
+            for f in features:
+                feat += fc[f]
 
         D.append(feat)
 
