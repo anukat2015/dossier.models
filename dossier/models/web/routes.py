@@ -212,11 +212,12 @@ def rejester_run_extract(work_unit):
         #logger.info('got %d URLs from %d queries', len(link2queries), len(queries))
         logger.info('got %d URLs from %d queries', len(links), len(queries))
 
+        # content_ids gets modified within the 'callback' closure
         content_ids = []
         #for link, queries in link2queries.items():
-        for link in links:
-            si = fetcher.get(link)
-            if si is None: continue
+
+        def callback(si, link):
+            if si is None: return
             cid_url = hashlib.md5(str(link)).hexdigest()
             cid = etl.interface.mk_content_id(cid_url)
             content_ids.append(cid)
@@ -233,7 +234,7 @@ def rejester_run_extract(work_unit):
                 logger.info('skipping ingest for %r (abs url: %r) because '
                             'an FC with user data already exists.',
                             cid, link)
-                continue
+                return
 
             other_features = {
                 u'keywords': StringCounter(keywords), #list(queries)),
@@ -251,6 +252,8 @@ def rejester_run_extract(work_unit):
             except Exception:
                 logger.info('failed ingest on %r (abs url: %r)',
                             cid, link, exc_info=True)
+
+        fetcher.get_async(links, callback)
 
         data = json.dumps({'content_ids': content_ids})
         logger.info('saving %d content_ids', len(content_ids))

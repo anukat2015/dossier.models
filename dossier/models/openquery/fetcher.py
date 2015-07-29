@@ -5,27 +5,54 @@ import time
 import dateutil.parser
 from requests import Request, Session
 import streamcorpus
+import trollius as asyncio
 
 logger = logging.getLogger(__name__)
 
 
 class Fetcher(object):
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/38.0.2125.122 Safari/537.36',
+        'Referer': 'https://www.google.com/',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
+        'image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip',
+        'Accept-Language': 'en-US,en;q=0.8',
+    }
+
     def __init__(self, timeout=60):
         self.session = Session()
         self.timeout = timeout
 
+    def get_async(self, urls, callback):
+        def get(url, headers):
+            return requests.get(url, headers=headers)
+
+        @asyncio.coroutine
+        def run(urls, concurrency, loop):
+            pending = [loop.run_in_executor(None, get, url, self.headers) for url in urls[:concurrency]]
+            rest = urls[concurrency:]
+            while pending:
+                done, pending = yield asyncio.From(asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED))
+                while rest and len(pending) < concurrency:
+                    pending.add(loop.run_in_executor(None, get, rest.pop(), self.headers))
+                for future in done:
+                    try:
+                        resp = future.result()
+                        si = self.process_response(resp)
+                        callback(si, resp.url)
+                    except Exception:
+                        logger.info('failed on url', exc_info=True)
+
+        loop = asyncio.get_event_loop()
+        # TODO: make magic concurrency number a parameter
+        loop.run_until_completed(run(urls, concurrency=32, loop=loop)) 
+
     def get(self, url):
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) '
-                          'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/38.0.2125.122 Safari/537.36',
-            'Referer': 'https://www.google.com/',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
-                      'image/webp,*/*;q=0.8',
-            'Accept-Encoding': 'gzip',
-            'Accept-Language': 'en-US,en;q=0.8',
-            }
-        req = Request('GET',  url, headers=headers)
+        req = Request('GET', url, headers=self.headers)
 
         try:
             prepped = self.session.prepare_request(req)
@@ -34,6 +61,9 @@ class Fetcher(object):
             logger.info('failed on %r', url, exc_info=True)
             return None
 
+        return self.process_response(resp)
+
+    def process_response(self, resp):
         logger.info('retrieved %d bytes for %r', len(resp.content), resp.url)
 
         last_modified = resp.headers.get('last-modified')
