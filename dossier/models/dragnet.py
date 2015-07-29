@@ -5,12 +5,13 @@ import json
 import logging
 from math import exp
 import operator
-
+from itertools import islice
 import kvlayer
 import dblogger
 import rejester
 import many_stop_words
 import yakonfig
+import regex as re
 
 stops = many_stop_words.get_stop_words()
 
@@ -23,7 +24,7 @@ import numpy as np
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
-from dossier.fc import StringCounter
+from dossier.fc import StringCounter, FeatureCollection
 from dossier.models.web.config import Config
 from dossier.models.folder import Folders
 
@@ -43,10 +44,10 @@ def rejester_run_dragnet(work_unit):
             feat = StringCounter()
             rejects = set()
             keepers = set()
-            keepers_keys = ['GPE', 'PERSON', 'ORGANIZATION']
+            keepers_keys = ['GPE', 'PERSON', 'ORGANIZATION', 'usernames']
             rejects_keys = ['keywords']
             # The features used to pull the keys for the classifier
-            for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8), ('bowNP', 10**3), ('PERSON', 10**8), ('ORGANIZATION', 10**6)]:
+            for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8), ('bowNP', 10**3), ('PERSON', 10**8), ('ORGANIZATION', 10**6), ('usernames', 10**12)]:
                 if strength == 1:
                     feat += fc[f]
                 else:
@@ -73,12 +74,13 @@ def rejester_run_dragnet(work_unit):
             for sid in FT.subfolders(fid):
                 for cid, subtopic_id in FT.items(fid, sid):
                     fc = web_conf.store.get(cid)
+                    if not fc: fc = FeatureCollection()
                     feat, _rejects, _keepers = make_feature(fc)
                     D.append(feat)
                     labels.append(idx)
                     rejects.update(_rejects)
                     keepers.update(_keepers)
-                    logger.info('observation: %r', cid)
+                    logger.info('fid=%r, observation: %r', fid, cid)
 
         # Convert the list of Counters into an sklearn compatible format
         logger.info('transforming...')
@@ -94,15 +96,18 @@ def rejester_run_dragnet(work_unit):
         logger.info('fit MultinomialNB')
 
         counts = Counter()
-        for cid, fc in web_conf.store.scan():
+        for cid, fc in islice(web_conf.store.scan(), 1000):
             feat, _rejects, _keepers = make_feature(fc)
             X = v.transform([feat])
             target = clf.predict(X[0])[0]
             counts[label2fid[target]] += 1
-
+            
         logger.info('counts done')
 
         # Extract the learned features that are predictive
+        #userclf = cyber_text_features.handles.classifier.Classifier('naivebayes')
+        allowed_format_re = re.compile(ur'^\w(?:\w*(?:[.-_]\w+)?)*(?<=^.{4,32})$') 
+        has_non_letter_re = re.compile(ur'[^a-zA-Z]+')
         clusters = []
         for idx in sorted(set(labels)):
             logger.info('considering cluster: %d', idx)
@@ -114,7 +119,17 @@ def rejester_run_dragnet(work_unit):
             words = Counter(all_features)
             ordered = sorted(words.items(), 
                              key=operator.itemgetter(1), reverse=True)
-            filtered = [it for it in ordered if (it[0] not in rejects and it[0] in keepers and it[0] not in stops)]
+            filtered = []
+            for it in islice(ordered, 10000):
+                #is_username = userclf.classify(it[0])
+                is_username = bool(allowed_format_re.match(it[0])) and bool(has_non_letter_re.search(it[0]))
+                logger.info('%r is_username=%r', it[0], is_username)
+                if not is_username:
+                    continue
+                filtered.append(it)
+
+            filtered = filtered[:100] # hard cutoff
+
             biggest = exp(filtered[0][1])
             filtered = [(key, int(round(counts[label2fid[idx]] * exp(w) / biggest))) for key, w in filtered]
             logger.info('%s --> %r', label2fid[idx], ['%s: %d' % it for it in filtered[:10]])

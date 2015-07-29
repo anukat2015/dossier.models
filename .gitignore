@@ -8,3 +8,5 @@ log*
 \#*
 \.\#*
 docker-ubuntu-demo
+build
+dist

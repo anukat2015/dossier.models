@@ -71,7 +71,9 @@ class similar(web.SearchEngine):
         return {'results': list(islice(results, self.params['limit']))}
 
     def ranked_candidates(self, learner):
-        return sorted(learner.probabilities(), reverse=True, key=itemgetter(1))
+        results = sorted(learner.probabilities(), reverse=True, key=itemgetter(1))
+        logger.info('results\n%s', '\n'.join(map(str, map(itemgetter(1), results))))
+        return results
 
 
 class dissimilar(similar):
