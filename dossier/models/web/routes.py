@@ -252,7 +252,7 @@ def rejester_run_extract(work_unit):
             except Exception:
                 logger.info('failed ingest on %r (abs url: %r)',
                             cid, link, exc_info=True)
-
+        logger.info('FETCHING using ASYNC')
         fetcher.get_async(links, callback)
 
         data = json.dumps({'content_ids': content_ids})
@@ -465,8 +465,12 @@ def v1_fc_put(request, response, store, kvlclient, tfidf, cid):
 
         folders = Folders(kvlclient)
         for fid, sid in folders.parent_subfolders(cid):
-            keywords.add(cleanse(fid.decode('utf8')))
-            keywords.add(cleanse(sid.decode('utf8')))
+            if not isinstance(fid, unicode):
+                fid = fid.decode('utf8')
+            if not isinstance(fid, unicode):
+                sid = sid.decode('utf8')
+            keywords.add(cleanse(fid))
+            keywords.add(cleanse(sid))
 
         fc[u'keywords'] = StringCounter(keywords)
         store.put([(cid, fc)])

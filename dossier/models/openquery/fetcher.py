@@ -3,7 +3,7 @@ import os
 import time
 
 import dateutil.parser
-from requests import Request, Session
+import requests
 import streamcorpus
 import trollius as asyncio
 
@@ -24,15 +24,19 @@ class Fetcher(object):
     }
 
     def __init__(self, timeout=60):
-        self.session = Session()
+        self.session = requests.Session()
         self.timeout = timeout
 
     def get_async(self, urls, callback):
         def get(url, headers):
-            return requests.get(url, headers=headers)
+            resp = requests.get(url, headers=headers)
+            if resp:
+                si = self.process_response(resp)
+                callback(si, resp.url)
 
         @asyncio.coroutine
         def run(urls, concurrency, loop):
+            urls = list(urls)
             pending = [loop.run_in_executor(None, get, url, self.headers) for url in urls[:concurrency]]
             rest = urls[concurrency:]
             while pending:
@@ -41,18 +45,17 @@ class Fetcher(object):
                     pending.add(loop.run_in_executor(None, get, rest.pop(), self.headers))
                 for future in done:
                     try:
-                        resp = future.result()
-                        si = self.process_response(resp)
-                        callback(si, resp.url)
+                        si = future.result()
+                        # callback(si, si.original_url)
                     except Exception:
                         logger.info('failed on url', exc_info=True)
 
         loop = asyncio.get_event_loop()
         # TODO: make magic concurrency number a parameter
-        loop.run_until_completed(run(urls, concurrency=32, loop=loop)) 
+        loop.run_until_complete(run(urls, concurrency=32, loop=loop)) 
 
     def get(self, url):
-        req = Request('GET', url, headers=self.headers)
+        req = requests.Request('GET', url, headers=self.headers)
 
         try:
             prepped = self.session.prepare_request(req)
@@ -61,7 +64,7 @@ class Fetcher(object):
             logger.info('failed on %r', url, exc_info=True)
             return None
 
-        return self.process_response(resp)
+        return self.process_response(resp, url)
 
     def process_response(self, resp):
         logger.info('retrieved %d bytes for %r', len(resp.content), resp.url)
@@ -80,7 +83,7 @@ class Fetcher(object):
             resp.url
             )
         # don't try to convert it... e.g. if we got a PDF
-        si.original_url = url
+        si.original_url = resp.url
         si.body.raw = resp.content
         media_type = resp.headers.get('content-type')
         try:

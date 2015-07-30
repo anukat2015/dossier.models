@@ -100,8 +100,11 @@ def noun_phrases(text, included_unnormalized=False):
     def normalize(word):
         '''Normalises words to lowercase and stems and lemmatizes it.'''
         word = word.lower()
-        word = stemmer.stem_word(word)
-        word = lemmatizer.lemmatize(word)
+        try:
+            word = stemmer.stem_word(word)
+            word = lemmatizer.lemmatize(word)
+        except:
+            pass
         return word
 
     normalizations = defaultdict(list)

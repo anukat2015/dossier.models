@@ -73,7 +73,11 @@ def rejester_run_dragnet(work_unit):
             for sid in FT.subfolders(fid):
                 for cid, subtopic_id in FT.items(fid, sid):
                     fc = web_conf.store.get(cid)
-                    feat, _rejects, _keepers = make_feature(fc)
+                    if fc:
+                        feat, _rejects, _keepers = make_feature(fc)
+                    else:
+                        _rejects = {}
+                        _keepers = {}
                     D.append(feat)
                     labels.append(idx)
                     rejects.update(_rejects)
