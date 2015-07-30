@@ -3,3 +3,4 @@ include version.py
 include LICENSE
 include README.md
 recursive-include dossier/models/web/static *
+include dossier/models/features/naivebayes.pkl

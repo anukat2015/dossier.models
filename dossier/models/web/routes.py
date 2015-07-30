@@ -467,7 +467,7 @@ def v1_fc_put(request, response, store, kvlclient, tfidf, cid):
         for fid, sid in folders.parent_subfolders(cid):
             if not isinstance(fid, unicode):
                 fid = fid.decode('utf8')
-            if not isinstance(fid, unicode):
+            if not isinstance(sid, unicode):
                 sid = sid.decode('utf8')
             keywords.add(cleanse(fid))
             keywords.add(cleanse(sid))

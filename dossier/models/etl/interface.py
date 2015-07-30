@@ -176,10 +176,15 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
     ## get parsed versions, extract usernames
     fc[u'img_url_path_dirs'] = features.path_dirs(fc[u'image_url'])
     fc[u'img_url_hostnames'] = features.host_names(fc[u'image_url'])
-    fc[u'img_url_usernames'] = features.usernames(fc[u'image_url'])
+    fc[u'usernames'] = features.usernames(fc[u'image_url'])
+
     fc[u'a_url_path_dirs'] = features.path_dirs(fc[u'a_url'])
     fc[u'a_url_hostnames'] = features.host_names(fc[u'a_url'])
-    fc[u'a_url_usernames'] = features.usernames(fc[u'a_url'])
+
+    fc[u'usernames'] += features.usernames(fc[u'a_url'])
+
+    #fc[u'usernames'] += features.usernames2(
+    #    fc[u'meta_clean_visible'])
 
     # beginning of treating this as a pipeline...
     xform = features.entity_names()
