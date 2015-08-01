@@ -26,12 +26,17 @@ REGEX_PHONES = [
     r'\d-?\d{3}-?\d{3}-?\d{4}',
     r'\d{3}-?\d{3}-?\d{4}',
     r'\d{3}-?\d{4}',
+    r'\d{2}-?\d{11}',
+    r'\d{2,3}-?\d{7,15}',
 ]
 REGEX_PHONE = re.compile('|'.join(REGEX_PHONES))
 
 # Be extremely liberal with what we consider an email address.
 REGEX_EMAIL = re.compile(r'\b\S+@\S+\.\S+\b', re.IGNORECASE)
 
+REGEX_SKYPE = re.compile(ur'skype(\s|ID|handle|name|\:)*'
+                         ur'(?P<skype>[a-zA-Z][a-zA-Z0-9,-._]{5,31})',
+                         flags = re.UNICODE | re.IGNORECASE)
 
 def phones(text):
     '''Returns list of phone numbers without punctuation.'''
@@ -43,9 +48,12 @@ def emails(text):
     '''Returns list of phone numbers without punctuation.'''
     return imap(lambda m: m.group(0).lower(), REGEX_EMAIL.finditer(text))
 
+def skypes(text):
+    '''Returns list of skype handles.'''
+    return imap(lambda m: m.group(skype), REGEX_SKYPE.finditer(text))
 
 def image_urls(html):
-    soup = BeautifulSoup(html)
+    soup = BeautifulSoup(html, "lxml")
     for node in soup.find_all('img'):
         try:
             src = node['src']
@@ -123,3 +131,26 @@ def uni(s):
         except UnicodeDecodeError:
             return s.decode('latin-1')
     return s
+
+
+
+
+REGEX_ICQ = re.compile(ur'icq(\s|number|\:)*(?P<icq>[0-9-]{3,9}(\s*[0-9-]{,9})*)',
+                       flags = re.UNICODE | re.IGNORECASE)
+
+REGEX_DIGITS = re.compile(r'[^0-9]', flags=re.MULTILINE)
+
+def ICQs(text):
+    ## TODO: remove trailing whitespace from RAW
+
+    for match in REGEX_ICQ.finditer(text):
+        sub = match.span('icq')
+        raw_string = text[sub[0]:sub[1]]
+        icq = digits_re.sub('', raw_string)
+        if icq:
+            try:
+                icq = int(icq)
+            except:
+                continue
+            icqs.append(str(icq))
+    return icqs

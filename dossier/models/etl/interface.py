@@ -166,6 +166,8 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
 
     fc[u'meta_url'] = uni(url)
 
+    add_feature(u'icq', features.ICQs(clean_visible))
+    add_feature(u'skype', features.skypes(clean_visible))
     add_feature(u'phone', features.phones(clean_visible))
     add_feature(u'email', features.emails(clean_visible))
     bowNP, normalizations = features.noun_phrases(
