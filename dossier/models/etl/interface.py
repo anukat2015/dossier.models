@@ -139,7 +139,11 @@ def html_to_fc(html=None, clean_html=None, clean_visible=None, encoding=None, ur
 
     if clean_html is None:
         if html is not None:
-            clean_html_utf8 = make_clean_html(html, encoding=encoding)
+            try:
+                clean_html_utf8 = make_clean_html(html, encoding=encoding)
+            except: 
+                logger.warn('dropping doc because:', exc_info=True)
+                return
             clean_html = clean_html_utf8.decode('utf-8')
         else:
             clean_html_utf8 = u''
