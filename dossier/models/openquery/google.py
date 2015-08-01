@@ -30,8 +30,12 @@ RESULTS_PER_PAGE = 10
 
 class Google(object):
     url = "https://www.googleapis.com/customsearch/v1" \
-          "?key=%(key)s&cx=012511506682437389639:sw8_ywndm-g" \
+          "?key=%(key)s&cx=008142435548003360103:a-_62xajpao" \
           "&q=%(query)s&num=%(num)s&safe=off&start=%(start)s"
+
+    #012511506682437389639:sw8_ywndm-g
+    #
+
 
     def __init__(self, api_key):
         self.api_key = api_key
