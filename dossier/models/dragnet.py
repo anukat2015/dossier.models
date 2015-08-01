@@ -44,10 +44,13 @@ def rejester_run_dragnet(work_unit):
             feat = StringCounter()
             rejects = set()
             keepers = set()
-            keepers_keys = ['GPE', 'PERSON', 'ORGANIZATION', 'usernames']
-            rejects_keys = ['keywords']
+            #keepers_keys = ['GPE', 'PERSON', 'ORGANIZATION', 'usernames']
+            keepers_keys = ['phone', 'email'] #['usernames', 'phone', 'email', 'ORGANIZATION', 'PERSON']
+            rejects_keys = ['keywords', 'usernames', 'ORGANIZATION', 'PERSON']
             # The features used to pull the keys for the classifier
-            for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8), ('bowNP', 10**3), ('PERSON', 10**8), ('ORGANIZATION', 10**6), ('usernames', 10**12)]:
+            for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8), 
+                                ('phone', 10**12), ('email', 10**12),
+                                ('bowNP', 10**3), ('PERSON', 10**8), ('ORGANIZATION', 10**6), ('usernames', 10**12)]:
                 if strength == 1:
                     feat += fc[f]
                 else:
@@ -111,6 +114,12 @@ def rejester_run_dragnet(work_unit):
         #userclf = cyber_text_features.handles.classifier.Classifier('naivebayes')
         allowed_format_re = re.compile(ur'^\w(?:\w*(?:[.-_]\w+)?)*(?<=^.{4,32})$') 
         has_non_letter_re = re.compile(ur'[^a-zA-Z]+')
+        has_only_underscore = re.compile(ur'^([^a-zA-Z]+_)+[a-zA-Z]*$')
+        def has_repeating_letter(s):
+            for i in range(len(s) - 1):
+                if s[i] == s[i+1]: return True
+            return False
+        has_number_re = re.compile(ur'[0-9]')
         clusters = []
         for idx in sorted(set(labels)):
             logger.info('considering cluster: %d', idx)
@@ -123,13 +132,17 @@ def rejester_run_dragnet(work_unit):
             ordered = sorted(words.items(), 
                              key=operator.itemgetter(1), reverse=True)
             filtered = []
-            for it in islice(ordered, 10000):
+            for it in ordered:
+
                 #is_username = userclf.classify(it[0])
-                is_username = bool(allowed_format_re.match(it[0])) and bool(has_non_letter_re.search(it[0]))
+                is_username = (bool(allowed_format_re.match(it[0])) and bool(has_non_letter_re.search(it[0]))
+                               and not has_only_underscore.match(it[0]))
                 logger.info('%r is_username=%r', it[0], is_username)
-                if not is_username:
-                    continue
+                #if not is_username:
+                #    continue
                 filtered.append(it)
+                if len(filtered) > 100:
+                    break
 
             filtered = filtered[:100] # hard cutoff
 
