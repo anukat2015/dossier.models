@@ -143,6 +143,7 @@ REGEX_DIGITS = re.compile(r'[^0-9]', flags=re.MULTILINE)
 def ICQs(text):
     ## TODO: remove trailing whitespace from RAW
 
+    icqs = []
     for match in REGEX_ICQ.finditer(text):
         sub = match.span('icq')
         raw_string = text[sub[0]:sub[1]]
