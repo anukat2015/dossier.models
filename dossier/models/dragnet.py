@@ -120,6 +120,12 @@ def rejester_run_dragnet(work_unit):
                 if s[i] == s[i+1]: return True
             return False
         has_number_re = re.compile(ur'[0-9]')
+        bad_punctuation_re = re.compile(ur'[&=;"-/]')
+        def is_bad_token(s):
+            if len(s.strip()) == 0: return True
+            if bad_punctuation_re.search(s): return True
+            return False
+            
         clusters = []
         for idx in sorted(set(labels)):
             logger.info('considering cluster: %d', idx)
@@ -133,6 +139,7 @@ def rejester_run_dragnet(work_unit):
                              key=operator.itemgetter(1), reverse=True)
             filtered = []
             for it in ordered:
+                if is_bad_token(it[0]): continue                
 
                 #is_username = userclf.classify(it[0])
                 is_username = (bool(allowed_format_re.match(it[0])) and bool(has_non_letter_re.search(it[0]))
