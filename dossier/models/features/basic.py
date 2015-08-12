@@ -50,7 +50,7 @@ def emails(text):
 
 def skypes(text):
     '''Returns list of skype handles.'''
-    return imap(lambda m: m.group(skype), REGEX_SKYPE.finditer(text))
+    return imap(lambda m: m.group('skype'), REGEX_SKYPE.finditer(text))
 
 def image_urls(html):
     soup = BeautifulSoup(html, "lxml")
