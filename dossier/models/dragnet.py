@@ -5,6 +5,11 @@ highlighting.
 .. This software is released under an MIT/X11 open source license.
    Copyright 2015 Diffeo, Inc.
 
+Dragnet
+=======
+.. autofunction:: make_feature
+.. autofunction:: worker
+
 '''
 from __future__ import division
 import argparse
@@ -58,7 +63,7 @@ def make_feature(fc):
     keepers_keys = ['phone', 'email'] #['usernames', 'phone', 'email', 'ORGANIZATION', 'PERSON']
     rejects_keys = ['keywords', 'usernames', 'ORGANIZATION', 'PERSON']
     # The features used to pull the keys for the classifier
-    for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8), 
+    for f, strength in [('keywords', 10**4), ('GPE', 1), ('bow', 1), ('bowNP_sip', 10**8),
                         ('phone', 10**12), ('email', 10**12),
                         ('bowNP', 10**3), ('PERSON', 10**8), ('ORGANIZATION', 10**6), ('usernames', 10**12)]:
         if strength == 1:
@@ -80,7 +85,7 @@ def worker(work_unit, max_sample=1000):
 
     1. scans all dossiers at the *folder* level and assembles feature
     vectors for each folder -- see `make_feature`
-    
+
     2. trains a multinomial naive Bayes classifier that treats each
     *folder* as a classifier target.
 
@@ -106,7 +111,7 @@ def worker(work_unit, max_sample=1000):
 
         labels = []
         D = list()
-        
+
         label2fid = dict()
 
         rejects = set()
@@ -157,26 +162,26 @@ def worker(work_unit, max_sample=1000):
             target = clf.predict(X[0])[0]
             # count the effective size of that folder in this sample
             counts[label2fid[target]] += 1
-            
+
         logger.info('counts done')
 
         ## 4. Bootstrap by treating those classifier predictions as
         ## truth data and extract the learned features that are
-        ## predictive as new query strings.             
+        ## predictive as new query strings.
         clusters = []
         for idx in sorted(set(labels)):
             logger.debug('considering cluster: %d', idx)
             try:
                 all_features = v.inverse_transform(clf.feature_log_prob_[idx])[0]
-            except: 
+            except:
                 logger.warn('beyond edge on cluster %d', idx)
                 continue
             words = Counter(all_features)
-            ordered = sorted(words.items(), 
+            ordered = sorted(words.items(),
                              key=operator.itemgetter(1), reverse=True)
             filtered = []
             for it in ordered:
-                if is_bad_token(it[0]): continue                
+                if is_bad_token(it[0]): continue
 
                 if is_username(it[0]):
                     logger.debug('%r is_username', it[0])
@@ -218,7 +223,7 @@ def is_username(s):
                    and not has_only_underscore.match(s))
     return _is_username
 
-allowed_format_re = re.compile(ur'^\w(?:\w*(?:[.-_]\w+)?)*(?<=^.{4,32})$') 
+allowed_format_re = re.compile(ur'^\w(?:\w*(?:[.-_]\w+)?)*(?<=^.{4,32})$')
 has_non_letter_re = re.compile(ur'[^a-zA-Z]+')
 has_only_underscore = re.compile(ur'^([^a-zA-Z]+_)+[a-zA-Z]*$')
 def has_repeating_letter(s):

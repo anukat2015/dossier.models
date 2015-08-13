@@ -8,6 +8,14 @@ feature extraction.
    Copyright 2012-2015 Diffeo, Inc.
 
 .. autofunction:: noun_phrases
+.. autofunction:: entity_names
+.. autofunction:: ICQs
+.. autofunction:: skypes
+.. autofunction:: host_names
+.. autofunction:: usernames
+.. autofunction:: emails
+.. autofunction:: phones
+.. autofunction:: image_urls
 '''
 from __future__ import absolute_import
 from dossier.models.features.basic import emails, image_urls, phones, a_urls, ICQs, skypes

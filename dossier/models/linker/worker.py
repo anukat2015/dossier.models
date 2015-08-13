@@ -1,6 +1,12 @@
 '''coordinate/rejester worker function for executing query generation
 from a set of dossiers for use with open query.
 
+.. autofunction:: worker
+.. autofunction:: traverse_extract_fetch
+.. autofunction:: get_subfolder_queries
+.. autofunction:: extract_keyword_queries
+.. autofunction:: name_filter
+
 .. This software is released under an MIT/X11 open source license.
    Copyright 2015 Diffeo, Inc.
 '''
@@ -155,7 +161,7 @@ def traverse_extract_fetch(config, wukey, stop_after_extraction=False):
     fetcher.get_async(islice(links, None), callback)
 
     data = json.dumps({'content_ids': content_ids})
-    logger.info('saving %d content_ids in %d bytes on wukey %r', 
+    logger.info('saving %d content_ids in %d bytes on wukey %r',
                 len(content_ids), len(data), wukey)
     config.kvlclient.put('openquery', ((wukey,), data))
     logger.info('done saving for %r', wukey)
@@ -177,10 +183,10 @@ def get_subfolder_queries(store, label_store, folders, fid, sid):
 
 def extract_keyword_queries(store, label_store, folders, fid, sid, include_original=False):
     '''Transforms a folder structure into positive and negative examples
-    to feed to `linker.model.extract`.  This transforms SortingDesk's
+    to feed to ``linker.model.extract``.  This transforms SortingDesk's
     foldering structure into *supervision* data for the extractor.
 
-    This works best if folder name (`fid`) is the `name' of an entity
+    This works best if folder name (``fid``) is the ``name`` of an entity
     in question or, more generally, a query that a user might have
     issued to a search engine.  In particular, this approach makes
     sense for the annotated version of this task, which is what

@@ -2,6 +2,11 @@
 
 .. This software is released under an MIT/X11 open source license.
    Copyright 2012-2014 Diffeo, Inc.
+
+Soft selectors
+==============
+.. autofunction:: find_soft_selectors
+.. autofunction:: make_ngram_corpus
 '''
 
 from __future__ import absolute_import, division, print_function
@@ -182,9 +187,9 @@ def make_ngram_corpus(corpus_clean_visibles, num_tokens, filter_punctuation,
     FCs, tokenizes all the texts, and constructs n-grams using
     `num_tokens` sized windows.
 
-    `corpus_clean_visibles' -- list of unicode strings
-    `num_tokens' --- the n of the n-grams
-    `filter_punctuation' --- if True, punctuation is filtered
+    ``corpus_clean_visibles`` -- list of unicode strings
+    ``num_tokens`` --- the n of the n-grams
+    ``filter_punctuation`` --- if True, punctuation is filtered
     '''
     ## TODO: generatlize this zoning code, so that it works on many
     ## sites in the HT domain; consider finishing streamcorpus-zoner

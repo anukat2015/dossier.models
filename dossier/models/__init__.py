@@ -9,6 +9,9 @@ application for working with active learning.
 .. automodule:: dossier.models.pairwise
 .. automodule:: dossier.models.features
 .. automodule:: dossier.models.etl
+.. automodule:: dossier.models.dragnet
+.. automodule:: dossier.models.soft_selectors
+.. automodule:: dossier.models.linker
 '''
 from dossier.models import features
 from dossier.models.pairwise import PairwiseFeatureLearner, similar, dissimilar
