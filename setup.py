@@ -88,6 +88,7 @@ setup(
             'dossier.models = dossier.models.web.run:main',
             'dossier.models.soft_selectors = dossier.models.soft_selectors:main',
             'dossier.models.linker = dossier.models.linker.run:main',
+            'dossier.models.dragnet = dossier.models.dragnet:main',
             'dossier.etl = dossier.models.etl:main',
         ],
         'streamcorpus_pipeline.stages': [
