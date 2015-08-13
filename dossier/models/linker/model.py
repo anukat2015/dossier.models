@@ -1,5 +1,14 @@
-'''
-Create a keyword searches from an entity profile.
+'''Create a keyword searches from an entity profile.  Given a labeled
+collection of feature collections, train a classifier to identify the
+entity using such as scikit-learn Bernoulli naive Bayes:
+
+http://scikit-learn.org/stable/modules/naive_bayes.html
+
+http://scikit-learn.org/stable/modules/generated/sklearn.naive_bayes
+.BernoulliNB.html#sklearn.naive_bayes.BernoulliNB
+
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2015 Diffeo, Inc.
 '''
 from __future__ import absolute_import, division
 import json
@@ -35,16 +44,6 @@ from sklearn.naive_bayes import BernoulliNB
 
 logger = logging.getLogger(__name__)
 
-'''
-Given a labeled collection of feature collections, 
-train a classifier to identify the entity using the simplest
-off the shelf tools, such as scikit-learn Bernoulli naive Bayes:
-
-http://scikit-learn.org/stable/modules/naive_bayes.html
-
-http://scikit-learn.org/stable/modules/generated/sklearn.naive_bayes
-.BernoulliNB.html#sklearn.naive_bayes.BernoulliNB
-'''
 
 def extract(positive_fcs, negative_fcs, features=None):
     '''Takes a labeled set of feature collections (positive and negative)
@@ -140,9 +139,6 @@ if __name__ == '__main__':
                     'both_co_ORG_3']
     )
     
-    print 'Predictive of positive labels:'
-    print keywords[0]
-
-    print 'Predictive of positive labels:'
-    print keywords[1]
+    logger.info('Predictive of positive labels: %r', keywords[0])
+    logger.info('Predictive of positive labels: %r', keywords[1])
     

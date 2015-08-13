@@ -20,6 +20,7 @@ import logging
 import time
 import urllib
 
+from bs4 import BeautifulSoup
 import gensim
 import kvlayer
 from dossier.store import Store
@@ -44,6 +45,32 @@ class ETL(object):
     @abc.abstractmethod
     def cids_and_fcs(self):
         raise NotImplementedError
+
+
+def create_fc_from_html(url, html, encoding='utf-8', tfidf=None, other_features=None):
+    soup = BeautifulSoup(unicode(html, encoding), "lxml")
+    title = soup_get(soup, 'title', lambda v: v.get_text())
+    body = soup_get(soup, 'body', lambda v: v.prettify())
+    if other_features is None:
+        other_features = {}
+    other_features.update({
+        u'title': StringCounter([title]),
+        u'titleBow': StringCounter(title.split()),
+    })
+    fc = html_to_fc(body, url=url, other_features=other_features)
+    if fc is None:
+        return None
+    if tfidf is not None:
+        add_sip_to_fc(fc, tfidf)
+    return fc
+
+
+def soup_get(soup, sel, cont):
+    v = soup.find(sel)
+    if v is None:
+        return u''
+    else:
+        return cont(v)
 
 
 class to_dossier_store(Configured):

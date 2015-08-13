@@ -1,4 +1,11 @@
+'''Detects mention and selector correlations across documents in the
+dossiers (folders), thus generating recommendations for querying and
+highlighting.
 
+.. This software is released under an MIT/X11 open source license.
+   Copyright 2015 Diffeo, Inc.
+
+'''
 from __future__ import division
 import argparse
 import json
@@ -30,7 +37,10 @@ from dossier.models.folder import Folders
 
 logger = logging.getLogger(__name__)
 
-def rejester_run_dragnet(work_unit):
+def worker(work_unit):
+    '''Expects a WorkUnit from coordinated for DragNet.
+
+    '''
     if 'config' not in work_unit.spec:
         raise rejester.exceptions.ProgrammerError(
             'could not run dragnet without global config')
