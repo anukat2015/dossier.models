@@ -1,4 +1,4 @@
-'''coordinate/rejester worker function for executing query generation
+'''coordinate worker function for executing query generation
 from a set of dossiers for use with open query.
 
 .. autofunction:: worker
@@ -21,7 +21,7 @@ import logging
 from dossier.fc import StringCounter, FeatureCollection
 import dblogger
 import kvlayer
-import rejester
+import coordinate
 from streamcorpus_pipeline import cleanse
 import yakonfig
 
@@ -41,13 +41,13 @@ def worker(work_unit):
 
     '''
     if 'config' not in work_unit.spec:
-        raise rejester.exceptions.ProgrammerError(
+        raise coordinate.exceptions.ProgrammerError(
             'could not run extraction without global config')
 
     web_conf = Config()
     unitconf = work_unit.spec['config']
     #logger.info(unitconf)
-    with yakonfig.defaulted_config([rejester, kvlayer, dblogger, web_conf],
+    with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
         traverse_extract_fetch(web_conf, work_unit.key)
 

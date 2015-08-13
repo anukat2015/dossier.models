@@ -77,7 +77,7 @@ setup(
         'xlsxwriter',
         'Pillow',
         'yakonfig',
-        'rejester',
+        'coordinate',
         'kvlayer',
         'trollius',
     ],

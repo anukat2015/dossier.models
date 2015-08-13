@@ -20,7 +20,7 @@ import operator
 from itertools import islice
 import kvlayer
 import dblogger
-import rejester
+import coordinate
 import many_stop_words
 import yakonfig
 import regex as re
@@ -101,12 +101,12 @@ def worker(work_unit, max_sample=1000):
 
     '''
     if 'config' not in work_unit.spec:
-        raise rejester.exceptions.ProgrammerError(
+        raise coordinate.exceptions.ProgrammerError(
             'could not run dragnet without global config')
 
     web_conf = Config()
     unitconf = work_unit.spec['config']
-    with yakonfig.defaulted_config([rejester, kvlayer, dblogger, web_conf],
+    with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
 
         labels = []

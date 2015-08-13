@@ -29,8 +29,8 @@ from dossier.models.web.config import Config
 import dossier.web.routes as routes
 from dossier.web.util import fc_to_json
 import kvlayer
-import rejester
-from rejester._task_master import \
+import coordinate
+from coordinate.constants import \
     AVAILABLE, BLOCKED, PENDING, FINISHED, FAILED
 import yakonfig
 import operator
@@ -64,8 +64,8 @@ def v1_dragnet():
     status = dragnet_status()
     if not status or status in (FINISHED, FAILED):
         logger.info('launching dragnet async work unit')
-        conf = yakonfig.get_global_config('rejester')
-        tm = rejester.build_task_master(conf)
+        conf = yakonfig.get_global_config('coordinate')
+        tm = coordinate.TaskMaster(conf)
         tm.add_work_units('dragnet', [(DRAGNET_KEY, {})])
         return {'state': 'submitted'}
     else:
@@ -86,8 +86,8 @@ def v1_dragnet(kvlclient):
             return {'state': 'failed'}
 
 def dragnet_status():
-    conf = yakonfig.get_global_config('rejester')
-    tm = rejester.build_task_master(conf)
+    conf = yakonfig.get_global_config('coordinate')
+    tm = coordinate.TaskMaster(conf)
     wu_status = tm.get_work_unit_status('dragnet', DRAGNET_KEY)
     if not wu_status: return None
     status = wu_status['status']
@@ -110,8 +110,8 @@ def v1_folder_report(request, response, kvlclient, store, fid):
 
 @app.get('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
 def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
-    conf = yakonfig.get_global_config('rejester')
-    tm = rejester.build_task_master(conf)
+    conf = yakonfig.get_global_config('coordinate')
+    tm = coordinate.TaskMaster(conf)
     key = cbor.dumps((fid, sid))
     wu_status = tm.get_work_unit_status('ingest', key)
     status = wu_status['status']
@@ -141,16 +141,16 @@ def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
 
 @app.post('/dossier/v1/folder/<fid>/subfolder/<sid>/extract')
 def v1_folder_extract_post(fid, sid):
-    conf = yakonfig.get_global_config('rejester')
-    tm = rejester.build_task_master(conf)
+    conf = yakonfig.get_global_config('coordinate')
+    tm = coordinate.TaskMaster(conf)
     key = cbor.dumps((fid, sid))
     wu_status = tm.get_work_unit_status('ingest', key)
     if wu_status and wu_status['status'] in (AVAILABLE, BLOCKED, PENDING):
         return {'state': 'pending'}
     else:
         logger.info('launching async work unit for %r', (fid, sid))
-        conf = yakonfig.get_global_config('rejester')
-        tm = rejester.build_task_master(conf)
+        conf = yakonfig.get_global_config('coordinate')
+        tm = coordinate.TaskMaster(conf)
         tm.add_work_units('ingest', [(cbor.dumps((fid, sid)), {})])
         return {'state': 'submitted'}
 
