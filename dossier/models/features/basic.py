@@ -66,7 +66,7 @@ def a_urls(html):
     '''
     return normalized urls found in the 'a' tag
     '''
-    soup = BeautifulSoup(html)
+    soup = BeautifulSoup(html, 'lxml')
     for node in soup.find_all('a'):
         try:
             href = node['href']

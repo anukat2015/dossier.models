@@ -124,12 +124,14 @@ def v1_folder_extract_get(request, response, kvlclient, store, fid, sid):
             data = list(kvlclient.get('openquery', (key,)))
             assert len(data) == 1, data
             logger.info('got data of len 1: %r', data)
+            assert data[0], data
+            assert data[0][1], data
             data = data[0][1]
-            assert data, 'how did we get no data?'
             data = json.loads(data)
             data['state'] = 'done'
             return data
         except:
+            logger.info('kvlclient: %r', kvlclient)
             logger.error('Failed to get openquery data: %r', data, exc_info=True)
             return {'state': 'failed'}
 

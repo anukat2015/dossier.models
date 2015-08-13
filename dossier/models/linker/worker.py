@@ -7,7 +7,7 @@ from a set of dossiers for use with open query.
 from __future__ import absolute_import, division, print_function
 import cbor
 import hashlib
-from itertools import imap
+from itertools import imap, islice
 import json
 from operator import itemgetter
 import logging
@@ -46,9 +46,9 @@ def worker(work_unit):
         traverse_extract_fetch(web_conf, work_unit.key)
 
 
-def traverse_extract_fetch(config, key, stop_after_extraction=False):
+def traverse_extract_fetch(config, wukey, stop_after_extraction=False):
     '''Given a config and a
-    `key=cbor.dumps((folder_name,subfolder_name))`, traverse the
+    `wukey=cbor.dumps((folder_name,subfolder_name))`, traverse the
     folders to generate queries, issue them to Google, fetch the
     results, and ingest them.
 
@@ -56,17 +56,17 @@ def traverse_extract_fetch(config, key, stop_after_extraction=False):
 
     config.kvlclient.setup_namespace({'openquery': (str,)})
     try:
-        data = list(config.kvlclient.get('openquery', (key,)))
+        data = list(config.kvlclient.get('openquery', (wukey,)))
         if data:
             if data[0][1]:
                 logger.info('found existing query results: %r', data)
                 return
             else:
-                config.kvlclient.delete('openquery', (key,))
+                config.kvlclient.delete('openquery', (wukey,))
     except:
         logger.error('failed to get data from existing table', exc_info=True)
 
-    fid, sid = cbor.loads(key)
+    fid, sid = cbor.loads(wukey)
     tfidf = config.tfidf
     folders = Folders(config.kvlclient)
     fetcher = Fetcher()
@@ -141,19 +141,24 @@ def traverse_extract_fetch(config, key, stop_after_extraction=False):
                 encoding=si.body.encoding or 'utf-8', tfidf=tfidf,
                 other_features=other_features,
             )
+            if not fc:
+                logger.info('failed to get an FC, moving on')
+                return
             logger.info('created FC for %r (abs url: %r)',
                         cid, link)
             config.store.put([(cid, fc)])
         except Exception:
-            logger.info('failed ingest on %r (abs url: %r)',
+            logger.info('trapped ingest failure on %r (abs url: %r)',
                         cid, link, exc_info=True)
+
     logger.info('FETCHING using ASYNC')
-    fetcher.get_async(links, callback)
+    fetcher.get_async(islice(links, None), callback)
 
     data = json.dumps({'content_ids': content_ids})
-    logger.info('saving %d content_ids', len(content_ids))
-    config.kvlclient.put('openquery', ((key,), data))
-    logger.info('done saving for %r', key)
+    logger.info('saving %d content_ids in %d bytes on wukey %r', 
+                len(content_ids), len(data), wukey)
+    config.kvlclient.put('openquery', ((wukey,), data))
+    logger.info('done saving for %r', wukey)
 
 def get_subfolder_queries(store, label_store, folders, fid, sid):
     '''Returns [unicode].
