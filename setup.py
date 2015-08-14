@@ -56,6 +56,7 @@ setup(
     ],
     install_requires=[
         'cbor',
+        'coordinate',
         'beautifulsoup4',
         'dossier.fc >= 0.1.4',
         'dossier.label >= 0.1.5',
