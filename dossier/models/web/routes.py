@@ -216,3 +216,31 @@ def new_folders(kvlclient, request):
         conf['owner'] = request.query['annotator_id']
     return Folders(kvlclient, **conf)
 
+
+@app.post('/dossier/v1/highlighter/<cid>', json=True)
+def v1_highlighter_post(request, response, tfidf, cid):
+    '''Obtain highlights for a document POSTed as the body
+
+    The route for this endpoint is:
+    ``POST /dossier/v1/highlighter/<cid>``.
+
+    ``content_id`` is the id to associate with the given feature
+    collection. The feature collection should be in the request
+    body serialized as JSON.
+
+    '''
+    tfidf = tfidf or None
+    content_type = request.headers.get('content-type', '')
+    if not content_type.startswith('text/html'):
+        logger.critical('content-type=%r', content_type)
+        return
+
+    url = urllib.unquote(cid.split('|', 1)[1])
+    logger.info('parsing url: %r', url)
+    fc = etl.create_fc_from_html(url, request.body.read(), tfidf=tfidf)
+    keys = set()
+    for fname in ['ORGANIZATION', 'PERSON', 'FACILITY', 'GPE', 'LOCATION',
+                  'SKYPE', 'PHONE', 'email', 'bowNP_unnorm']:
+        keys.update(fc.get(fname, {}).keys())
+        logger.info('%r and %d keys', fname, len(keys))
+    return {'highlights': list(keys)}
