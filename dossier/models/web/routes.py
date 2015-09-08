@@ -243,4 +243,5 @@ def v1_highlighter_post(request, response, tfidf, cid):
                   'SKYPE', 'PHONE', 'email', 'bowNP_unnorm']:
         keys.update(fc.get(fname, {}).keys())
         logger.info('%r and %d keys', fname, len(keys))
-    return {'highlights': list(keys)}
+    return {'highlights': dict([(key, {'offset': None, 'suggestions': None}) 
+                                for key in list(keys)])}
