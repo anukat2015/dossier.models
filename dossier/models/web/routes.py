@@ -6,6 +6,7 @@
 from __future__ import absolute_import, division, print_function
 
 from collections import defaultdict
+from operator import itemgetter
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -217,6 +218,18 @@ def new_folders(kvlclient, request):
     return Folders(kvlclient, **conf)
 
 
+feature_pretty_names = [
+    ('ORGANIZATION', 'Organizations'), 
+    ('PERSON', 'Persons'), 
+    ('FACILITY', 'Facilities'),
+    ('GPE', 'Geo-political Entities'),
+    ('LOCATION', 'Locations'),
+    ('SKYPE', 'Skype Handles'), 
+    ('PHONE', 'Phone Numbers'), 
+    ('email', 'Email Addresses'), 
+    ('bowNP_unnorm', 'Noun Phrases'),
+    ]
+
 @app.post('/dossier/v1/highlighter/<cid>', json=True)
 def v1_highlighter_post(request, response, tfidf, cid):
     '''Obtain highlights for a document POSTed as the body
@@ -238,10 +251,12 @@ def v1_highlighter_post(request, response, tfidf, cid):
     url = urllib.unquote(cid.split('|', 1)[1])
     logger.info('parsing url: %r', url)
     fc = etl.create_fc_from_html(url, request.body.read(), tfidf=tfidf)
-    keys = set()
-    for fname in ['ORGANIZATION', 'PERSON', 'FACILITY', 'GPE', 'LOCATION',
-                  'SKYPE', 'PHONE', 'email', 'bowNP_unnorm']:
-        keys.update(fc.get(fname, {}).keys())
-        logger.info('%r and %d keys', fname, len(keys))
-    return {'highlights': dict([(key, {'offset': None, 'suggestions': None}) 
-                                for key in list(keys)])}
+    highlights = dict()
+    for feature_name, pretty_name in feature_pretty_names:
+        # Each type of string is 
+        total = sum(fc[feature_name].values())
+        highlights[pretty_name] = [
+            (phrase, count / total, [], [])
+            for phrase, count in sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)]
+        logger.info('%r and %d keys', feature_name, len(highlights[pretty_name]))
+    return {'highlights': highlights}
