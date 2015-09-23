@@ -48,7 +48,9 @@ class ETL(object):
 
 
 def create_fc_from_html(url, html, encoding='utf-8', tfidf=None, other_features=None):
-    soup = BeautifulSoup(unicode(html, encoding), "lxml")
+    if encoding is not None:
+        html = unicode(html, encoding)
+    soup = BeautifulSoup(html, "lxml")
     title = soup_get(soup, 'title', lambda v: v.get_text())
     body = soup_get(soup, 'body', lambda v: v.prettify())
     if other_features is None:

@@ -13,12 +13,16 @@ except ImportError:
     from StringIO import StringIO
 import logging
 import os.path as path
+import operator
 import urllib
 
 import bottle
 import cbor
 import json
 from streamcorpus_pipeline import cleanse
+from streamcorpus_pipeline._clean_html import uniform_html
+from streamcorpus_pipeline.offsets import char_offsets_to_xpaths
+import regex as re
 
 import dblogger
 from dossier.fc import StringCounter, FeatureCollection
@@ -34,7 +38,6 @@ import coordinate
 from coordinate.constants import \
     AVAILABLE, BLOCKED, PENDING, FINISHED, FAILED
 import yakonfig
-import operator
 
 
 app = bottle.Bottle()
@@ -231,11 +234,14 @@ feature_pretty_names = [
     ]
 
 @app.post('/dossier/v1/highlighter/<cid>', json=True)
-def v1_highlighter_post(request, response, tfidf, cid):
-    '''Obtain highlights for a document POSTed as the body
+def v0_highlighter_post(request, response, tfidf, cid):
+    '''Obtain highlights for a document POSTed as the body, which is the
+    pre-design-thinking structure of the highlights API.  See v1 below.  
+
+    NB: This end point will soon be deleted.
 
     The route for this endpoint is:
-    ``POST /dossier/v1/highlighter/<cid>``.
+    ``POST /dossier/v0/highlighter/<cid>``.
 
     ``content_id`` is the id to associate with the given feature
     collection. The feature collection should be in the request
@@ -271,3 +277,219 @@ def v1_highlighter_post(request, response, tfidf, cid):
             for phrase, count in sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)]
         logger.info('%r and %d keys', feature_name, len(highlights[pretty_name]))
     return {'highlights': highlights}
+
+
+@app.post('/dossier/v1/highlights', json=True)
+def v1_highlights_post(request, response, tfidf):
+    '''Obtain highlights for a document POSTed inside a JSON object.  
+
+    The route for this endpoint is:
+    ``POST /dossier/v1/highlights``.
+
+    The expected input structure is a JSON UTF-8 encoded string of an
+    object with these keys:
+
+    .. code-block:: javascript
+      {
+        // only text/html is supported at this time; hopefully PDF.js
+        // enables this to support PDF rendering too.
+        "content-type": "text/html",
+
+        // URL of the page (after resolving all redirects)
+        "content-location": "http://...",
+
+        // If provided by the original host, this will be populated,
+        // otherwise it is empty.
+        "last-modified": "datetime string or empty string",
+
+        // full page contents obtained by Javascript in the browser
+        // extension accessing `document.documentElement.innerHTML` which
+        // will already have been converted from `document.characterSet`
+        // to unicode scalar values, and therefore can be serialized to
+        // UTF-8 without issues.  (Needs testing on many browsers.)
+        "body": "... the body content ...",
+      }
+
+
+    The output structure is a JSON UTF-8 encoded string of an
+    object with these keys:
+
+    .. code-block:: javascript
+      {
+        "highlights": [Highlight, Highlight, ...]
+      }
+
+
+    where a `Highlight` object has this structure:
+
+    .. code-block:: javascript
+      {
+        // float in the range [0, 1]
+        "score": 0.7
+
+        // a string presented with a check box inside the options
+        // bubble when the user clicks the extension icon to choose
+        // which categories of highlights should be displayed.
+        "category": "Organization",
+
+        // `queries` are strings that are to be presented as
+        // suggestions to the user, and the extension enables the user
+        // to click any of the configured search engines to see
+        // results for a selected query string.
+        "queries": [],
+
+        // zero or more strings to match in the document and highlight
+        // with a single color.
+        "strings": [],
+
+        // zero or more XpathRange objects to lookup in the document
+        // and highlight with a single color.
+        "ranges": [],
+
+        // zero or more regular expression strings to compile and 
+        // execute to find spans to highlight with a single color.
+        "regexes": []
+      }
+
+    where an XpathRange object is:
+
+    .. code-block:: javascript
+      {
+        "start": XPathOffset,
+        "end": XPathOffset
+      }
+
+    where an XpathOffset object is:
+
+    .. code-block:: javascript
+      {
+        "node": "/html[1]/body[1]/p[1]/text()[2]",
+        "idx": 4,
+      }
+
+    All of the `strings`, `ranges`, and `regexes` in a `Highlight`
+    object should be given the same highlight color.  An `Highlight`
+    object can provide values in any of the three `strings`, `ranges`,
+    or `regexes` lists, and all should be highlighted.
+
+    '''
+    tfidf = tfidf or None
+    content_type = request.headers.get('content-type', '')
+    if not content_type.startswith('application/json'):
+        logger.critical('content-type=%r', content_type)
+        response.status = 415
+        return {'error': {'code': 0, 
+        'message': 'content_type=%r and should be text/html' % content_type}}
+
+    body = request.body.read()
+    if len(body) == 0:
+        response.status = 400
+        return {'error': {'code': 1, 'message': 'empty body'}}
+    try:
+        data = json.loads(body)
+    except Exception, exc:
+        response.status = 400
+        return {'error': {'code': 2, 'message': 'failed to read JSON body: %s' % exc}}
+
+
+    if not isinstance(data, dict):
+        response.status = 400
+        return {'error': {'code': 3, 'message': 'JSON payload deserialized to other than an object: %r' % type(data)}}
+
+    expected_keys = set(['content-type', 'content-location', 'last-modified', 'body'])
+    if set(data.keys()) != expected_keys:
+        response.status = 400
+        return {'error': {'code': 4, 'message': 'other than expected keys in JSON object.  Expected %r and received %r' % (expected_keys, set(data.keys()))}}
+
+    if len(data['content-location']) < 3:
+        response.status = 400
+        return {'error': {'code': 5, 'message': 'received invalid content-location=%r' % data['content-location']}}
+
+    if len(data['body']) < 3:
+        response.status = 400
+        return {'error': {'code': 6, 'message': 'received too little body=%r' % data['body']}}
+
+    fc = etl.create_fc_from_html(data['content-location'], data['body'], tfidf=tfidf, encoding=None)
+    if fc is None:
+        logger.critical('failed to get FC using %d bytes from %r', len(body), url)
+        response.status = 500
+        return {'error': {'code': 2, 'message': 'FC not generated for that content'}}
+    highlights = dict()
+    for feature_name, pretty_name in feature_pretty_names:
+        # Each type of string is 
+        if feature_name not in fc: continue
+        total = sum(fc[feature_name].values())
+        highlights[pretty_name] = [
+            (phrase, count / total)
+            for phrase, count in sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)]
+        logger.info('%r and %d keys', feature_name, len(highlights[pretty_name]))
+
+    return {'highlights': build_highlight_objects(data['body'], highlights)}
+
+def build_highlight_objects(html, highlights, uniformize_html=True):
+    '''converts a dict of pretty_name --> [tuple(string, score), ...] to
+    `Highlight` objects as specified above.
+
+    '''
+    if uniformize_html:
+        try:
+            html = uniform_html(html)
+        except Exception, exc:
+            logger.info('failed to get uniform_html(%d bytes) --> %s',
+                        len(html), exc, exc_info=True)
+            html = None
+
+    highlight_objects = []
+    for category, phrase_scores in highlights.iteritems():
+        for (phrase, score) in phrase_scores:
+            hl = dict(
+                score=score,
+                category=category,
+                )
+            ranges = make_xpath_ranges(html, phrase)
+            if ranges:
+                hl['ranges'] = ranges
+            elif phrase in html:
+                hl['strings'] = [phrase]
+            else:
+                hl['regexes'] = ['/%s/i' % phrase]
+            highlight_objects.append(hl)
+    return highlight_objects
+
+
+def make_xpath_ranges(html, phrase):
+    '''Given a HTML string and a `phrase`, build a regex to find offsets
+    for the phrase, and then build a list of `XPathRange` objects for
+    it.  If this fails, return empty list.
+
+    '''
+    if not html: return []
+    if not isinstance(phrase, unicode):
+        try:
+            phrase = phrase.decode('utf8')
+        except:
+            logger.info('failed %r.decode("utf8")', exc_info=True)
+            return []
+
+    phrase_re = re.compile(phrase, flags=re.UNICODE | re.IGNORECASE | re.MULTILINE)
+    spans = []
+    for match in phrase_re.finditer(html, overlapped=False):
+        spans.append(match.span()) # a list of tuple(start, end) char indexes
+
+    # now run fancy aligner magic to get xpath info and format them as
+    # XPathRange per above
+    try:
+        xpath_ranges = list(char_offsets_to_xpaths(html, spans))
+    except:
+        logger.info('failed to get xpaths', exc_info=True)
+        return []
+    ranges = []
+    for xpath_range in filter(None, xpath_ranges):
+        ranges.append(dict(
+            start=dict(node=xpath_range.start_xpath,
+                       idx=xpath_range.start_offset),
+            end=dict(node=xpath_range.end_xpath,
+                     idx=xpath_range.end_offset)))
+
+    return ranges
+
