@@ -242,18 +242,29 @@ def v1_highlighter_post(request, response, tfidf, cid):
     body serialized as JSON.
 
     '''
+    logger.info('got %r', cid)
     tfidf = tfidf or None
     content_type = request.headers.get('content-type', '')
     if not content_type.startswith('text/html'):
         logger.critical('content-type=%r', content_type)
-        return
+        response.status = 415
+        return {'error': {'code': 0, 'message': 'content_type=%r and should be text/html' % content_type}}
 
     url = urllib.unquote(cid.split('|', 1)[1])
-    logger.info('parsing url: %r', url)
-    fc = etl.create_fc_from_html(url, request.body.read(), tfidf=tfidf)
+    body = request.body.read()
+    if len(body) == 0:
+        response.status = 420
+        return {'error': {'code': 1, 'message': 'empty body'}}
+    logger.info('parsing %d bytes for url: %r', len(body), url)
+    fc = etl.create_fc_from_html(url, body, tfidf=tfidf)
+    if fc is None:
+        logger.critical('failed to get FC using %d bytes from %r', len(body), url)
+        response.status = 506
+        return {'error': {'code': 2, 'message': 'FC not generated for that content'}}
     highlights = dict()
     for feature_name, pretty_name in feature_pretty_names:
         # Each type of string is 
+        if feature_name not in fc: continue
         total = sum(fc[feature_name].values())
         highlights[pretty_name] = [
             (phrase, count / total, [], [])
