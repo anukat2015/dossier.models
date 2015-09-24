@@ -346,9 +346,17 @@ def v1_highlights_post(request, response, tfidf):
         // and highlight with a single color.
         "xranges": [],
 
-        // zero or more regular expression strings to compile and
+        // zero or more Regex objects to compile and
         // execute to find spans to highlight with a single color.
         "regexes": []
+      }
+
+    where a Regex object is:
+
+    .. code-block:: javascript
+      {
+        "regex": "...", // e.g., "[0-9]"
+        "flags": "..."  // e.g., "i" for case insensitive
       }
 
     where an xpath highlight object is:
@@ -397,7 +405,7 @@ def v1_highlights_post(request, response, tfidf):
         response.status = 400
         return {'error': {'code': 1, 'message': 'empty body'}}
     try:
-        data = json.loads(body, encoding='utf-8')
+        data = json.loads(body.decode('utf-8'))
     except Exception, exc:
         response.status = 400
         return {
@@ -470,7 +478,7 @@ def v1_highlights_post(request, response, tfidf):
             continue
         total = sum(fc[feature_name].values())
         bow = sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)
-        highlights[pretty_name] = [(phrase, count / total)
+        highlights[pretty_name] = [(phrase.decode('utf-8'), count / total)
                                    for phrase, count in bow]
         logger.info('%r and %d keys',
                     feature_name, len(highlights[pretty_name]))
@@ -485,7 +493,7 @@ def build_highlight_objects(html, highlights, uniformize_html=True):
     '''
     if uniformize_html:
         try:
-            html = uniform_html(html)
+            html = uniform_html(html).decode('utf-8')
         except Exception, exc:
             logger.info('failed to get uniform_html(%d bytes) --> %s',
                         len(html), exc, exc_info=True)
@@ -504,7 +512,10 @@ def build_highlight_objects(html, highlights, uniformize_html=True):
             elif phrase in html:
                 hl['strings'] = [phrase]
             else:
-                hl['regexes'] = ['/%s/i' % phrase]
+                hl['regexes'] = [{
+                    'regex': phrase,
+                    'flags': 'i',
+                }]
             highlight_objects.append(hl)
     return highlight_objects
 
