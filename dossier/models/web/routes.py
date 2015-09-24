@@ -222,21 +222,21 @@ def new_folders(kvlclient, request):
 
 
 feature_pretty_names = [
-    ('ORGANIZATION', 'Organizations'), 
-    ('PERSON', 'Persons'), 
+    ('ORGANIZATION', 'Organizations'),
+    ('PERSON', 'Persons'),
     ('FACILITY', 'Facilities'),
     ('GPE', 'Geo-political Entities'),
     ('LOCATION', 'Locations'),
-    ('SKYPE', 'Skype Handles'), 
-    ('PHONE', 'Phone Numbers'), 
-    ('email', 'Email Addresses'), 
+    ('SKYPE', 'Skype Handles'),
+    ('PHONE', 'Phone Numbers'),
+    ('email', 'Email Addresses'),
     ('bowNP_unnorm', 'Noun Phrases'),
     ]
 
 @app.post('/dossier/v1/highlighter/<cid>', json=True)
 def v0_highlighter_post(request, response, tfidf, cid):
     '''Obtain highlights for a document POSTed as the body, which is the
-    pre-design-thinking structure of the highlights API.  See v1 below.  
+    pre-design-thinking structure of the highlights API.  See v1 below.
 
     NB: This end point will soon be deleted.
 
@@ -269,7 +269,7 @@ def v0_highlighter_post(request, response, tfidf, cid):
         return {'error': {'code': 2, 'message': 'FC not generated for that content'}}
     highlights = dict()
     for feature_name, pretty_name in feature_pretty_names:
-        # Each type of string is 
+        # Each type of string is
         if feature_name not in fc: continue
         total = sum(fc[feature_name].values())
         highlights[pretty_name] = [
@@ -281,7 +281,7 @@ def v0_highlighter_post(request, response, tfidf, cid):
 
 @app.post('/dossier/v1/highlights', json=True)
 def v1_highlights_post(request, response, tfidf):
-    '''Obtain highlights for a document POSTed inside a JSON object.  
+    '''Obtain highlights for a document POSTed inside a JSON object.
 
     The route for this endpoint is:
     ``POST /dossier/v1/highlights``.
@@ -346,7 +346,7 @@ def v1_highlights_post(request, response, tfidf):
         // and highlight with a single color.
         "ranges": [],
 
-        // zero or more regular expression strings to compile and 
+        // zero or more regular expression strings to compile and
         // execute to find spans to highlight with a single color.
         "regexes": []
       }
@@ -378,8 +378,13 @@ def v1_highlights_post(request, response, tfidf):
     if not content_type.startswith('application/json'):
         logger.critical('content-type=%r', content_type)
         response.status = 415
-        return {'error': {'code': 0, 
-        'message': 'content_type=%r and should be application/json' % content_type}}
+        return {
+            'error': {
+                'code': 0,
+                'message': 'content_type=%r and should be '
+                           'application/json' % content_type,
+            },
+        }
 
     body = request.body.read()
     if len(body) == 0:
@@ -389,42 +394,83 @@ def v1_highlights_post(request, response, tfidf):
         data = json.loads(body)
     except Exception, exc:
         response.status = 400
-        return {'error': {'code': 2, 'message': 'failed to read JSON body: %s' % exc}}
-
+        return {
+            'error': {
+                'code': 2,
+                'message':
+                'failed to read JSON body: %s' % exc,
+            },
+        }
 
     if not isinstance(data, dict):
         response.status = 400
-        return {'error': {'code': 3, 'message': 'JSON payload deserialized to other than an object: %r' % type(data)}}
+        return {
+            'error': {
+                'code': 3,
+                'message': 'JSON payload deserialized to other than '
+                           'an object: %r' % type(data),
+            },
+        }
 
-    expected_keys = set(['content-type', 'content-location', 'last-modified', 'body'])
+    expected_keys = set([
+        'content-type', 'content-location', 'last-modified', 'body',
+    ])
     if set(data.keys()) != expected_keys:
         response.status = 400
-        return {'error': {'code': 4, 'message': 'other than expected keys in JSON object.  Expected %r and received %r' % (expected_keys, set(data.keys()))}}
+        return {
+            'error': {
+                'code': 4,
+                'message': 'other than expected keys in JSON object. '
+                           'Expected %r and received %r'
+                           % (expected_keys, set(data.keys())),
+            },
+        }
 
     if len(data['content-location']) < 3:
         response.status = 400
-        return {'error': {'code': 5, 'message': 'received invalid content-location=%r' % data['content-location']}}
+        return {
+            'error': {
+                'code': 5,
+                'message': 'received invalid content-location=%r'
+                           % data['content-location'],
+            },
+        }
 
     if len(data['body']) < 3:
         response.status = 400
-        return {'error': {'code': 6, 'message': 'received too little body=%r' % data['body']}}
+        return {
+            'error': {
+                'code': 6,
+                'message': 'received too little body=%r' % data['body'],
+            },
+        }
 
-    fc = etl.create_fc_from_html(data['content-location'], data['body'], tfidf=tfidf, encoding=None)
+    fc = etl.create_fc_from_html(
+        data['content-location'], data['body'], tfidf=tfidf, encoding=None)
     if fc is None:
-        logger.critical('failed to get FC using %d bytes from %r', len(body), url)
+        logger.critical('failed to get FC using %d bytes from %r',
+                        len(body), data['content-location'])
         response.status = 500
-        return {'error': {'code': 2, 'message': 'FC not generated for that content'}}
+        return {
+            'error': {
+                'code': 2,
+                'message': 'FC not generated for that content',
+            },
+        }
     highlights = dict()
     for feature_name, pretty_name in feature_pretty_names:
-        # Each type of string is 
-        if feature_name not in fc: continue
+        # Each type of string is
+        if feature_name not in fc:
+            continue
         total = sum(fc[feature_name].values())
-        highlights[pretty_name] = [
-            (phrase, count / total)
-            for phrase, count in sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)]
-        logger.info('%r and %d keys', feature_name, len(highlights[pretty_name]))
+        bow = sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)
+        highlights[pretty_name] = [(phrase, count / total)
+                                   for phrase, count in bow]
+        logger.info('%r and %d keys',
+                    feature_name, len(highlights[pretty_name]))
 
     return {'highlights': build_highlight_objects(data['body'], highlights)}
+
 
 def build_highlight_objects(html, highlights, uniformize_html=True):
     '''converts a dict of pretty_name --> [tuple(string, score), ...] to
@@ -463,7 +509,8 @@ def make_xpath_ranges(html, phrase):
     it.  If this fails, return empty list.
 
     '''
-    if not html: return []
+    if not html:
+        return []
     if not isinstance(phrase, unicode):
         try:
             phrase = phrase.decode('utf8')
@@ -471,10 +518,11 @@ def make_xpath_ranges(html, phrase):
             logger.info('failed %r.decode("utf8")', exc_info=True)
             return []
 
-    phrase_re = re.compile(phrase, flags=re.UNICODE | re.IGNORECASE | re.MULTILINE)
+    phrase_re = re.compile(
+        phrase, flags=re.UNICODE | re.IGNORECASE | re.MULTILINE)
     spans = []
     for match in phrase_re.finditer(html, overlapped=False):
-        spans.append(match.span()) # a list of tuple(start, end) char indexes
+        spans.append(match.span())  # a list of tuple(start, end) char indexes
 
     # now run fancy aligner magic to get xpath info and format them as
     # XPathRange per above
@@ -492,4 +540,3 @@ def make_xpath_ranges(html, phrase):
                      idx=xpath_range.end_offset)))
 
     return ranges
-
