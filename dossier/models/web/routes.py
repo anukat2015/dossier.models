@@ -478,7 +478,7 @@ def v1_highlights_post(request, response, tfidf):
             continue
         total = sum(fc[feature_name].values())
         bow = sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)
-        highlights[pretty_name] = [(phrase.decode('utf-8'), count / total)
+        highlights[pretty_name] = [(phrase, count / total)
                                    for phrase, count in bow]
         logger.info('%r and %d keys',
                     feature_name, len(highlights[pretty_name]))
