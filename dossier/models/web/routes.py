@@ -379,7 +379,7 @@ def v1_highlights_post(request, response, tfidf):
         logger.critical('content-type=%r', content_type)
         response.status = 415
         return {'error': {'code': 0, 
-        'message': 'content_type=%r and should be text/html' % content_type}}
+        'message': 'content_type=%r and should be application/json' % content_type}}
 
     body = request.body.read()
     if len(body) == 0:
