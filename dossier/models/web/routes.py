@@ -499,7 +499,7 @@ def build_highlight_objects(html, highlights, uniformize_html=True):
                 )
             ranges = make_xpath_ranges(html, phrase)
             if ranges:
-                hl['ranges'] = ranges
+                hl['xranges'] = [{'range': r} for r in ranges]
             elif phrase in html:
                 hl['strings'] = [phrase]
             else:

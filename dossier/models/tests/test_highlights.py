@@ -54,7 +54,7 @@ bad_html = '''
 <html>
   <body>
     <h1>Cats</h1>
-    <p>  
+    <p>
     <ul>
       <li>Fluffy
       <li>Fluffier
@@ -66,11 +66,11 @@ bad_html = '''
 def test_build_highlight_objects():
     highlights = build_highlight_objects(bad_html, {'cats': [('fluff', .9)]})
     assert len(highlights) == 1
-    assert len(highlights[0]['ranges']) == 2
+    assert len(highlights[0]['xranges']) == 2
 
 
 def test_build_highlight_objects_without_uniform():
-    highlights = build_highlight_objects(bad_html, {'cats': [('fluff', .9)]}, 
+    highlights = build_highlight_objects(bad_html, {'cats': [('fluff', .9)]},
                                          uniformize_html=False)
     assert len(highlights) == 1
     assert len(highlights[0]['regexes']) == 1
@@ -96,4 +96,4 @@ def test_v1_highlights_post():
     assert results
     assert len(results['highlights']) == 2
     assert len(results['highlights'][0]['regexes']) == 1
-    assert len(results['highlights'][1]['ranges']) == 1
+    assert len(results['highlights'][1]['xranges']) == 1
