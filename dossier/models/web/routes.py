@@ -286,7 +286,7 @@ def v1_highlights_post(request, response, tfidf):
     The route for this endpoint is:
     ``POST /dossier/v1/highlights``.
 
-    The expected input structure is a JSON UTF-8 encoded string of an
+    The expected input structure is a JSON encoded string of an
     object with these keys:
 
     .. code-block:: javascript
@@ -303,10 +303,9 @@ def v1_highlights_post(request, response, tfidf):
         "last-modified": "datetime string or empty string",
 
         // full page contents obtained by Javascript in the browser
-        // extension accessing `document.documentElement.innerHTML` which
-        // will already have been converted from `document.characterSet`
-        // to unicode scalar values, and therefore can be serialized to
-        // UTF-8 without issues.  (Needs testing on many browsers.)
+        // extension accessing `document.documentElement.innerHTML`.
+        // N.B. This needs experimentation to figure out whether the
+        // browser will always encode this as Unicode.
         "body": "... the body content ...",
       }
 
@@ -342,13 +341,20 @@ def v1_highlights_post(request, response, tfidf):
         // with a single color.
         "strings": [],
 
-        // zero or more XpathRange objects to lookup in the document
+        // zero or more xpath highlight objects to lookup in the document
         // and highlight with a single color.
-        "ranges": [],
+        "xranges": [],
 
         // zero or more regular expression strings to compile and
         // execute to find spans to highlight with a single color.
         "regexes": []
+      }
+
+    where an xpath highlight object is:
+
+    .. code-block:: javascript
+      {
+        "range": XPathRange
       }
 
     where an XpathRange object is:
@@ -368,10 +374,9 @@ def v1_highlights_post(request, response, tfidf):
       }
 
     All of the `strings`, `ranges`, and `regexes` in a `Highlight`
-    object should be given the same highlight color.  An `Highlight`
+    object should be given the same highlight color.  A `Highlight`
     object can provide values in any of the three `strings`, `ranges`,
     or `regexes` lists, and all should be highlighted.
-
     '''
     tfidf = tfidf or None
     content_type = request.headers.get('content-type', '')
