@@ -304,6 +304,7 @@ def v1_highlights_post(request, response, tfidf):
 
         // full page contents obtained by Javascript in the browser
         // extension accessing `document.documentElement.innerHTML`.
+        // This must be UTF-8 encoded.
         // N.B. This needs experimentation to figure out whether the
         // browser will always encode this as Unicode.
         "body": "... the body content ...",
@@ -396,7 +397,7 @@ def v1_highlights_post(request, response, tfidf):
         response.status = 400
         return {'error': {'code': 1, 'message': 'empty body'}}
     try:
-        data = json.loads(body)
+        data = json.loads(body, encoding='utf-8')
     except Exception, exc:
         response.status = 400
         return {
