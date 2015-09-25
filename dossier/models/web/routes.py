@@ -283,6 +283,12 @@ def v0_highlighter_post(request, response, tfidf, cid):
 def v1_highlights_post(request, response, tfidf):
     '''Obtain highlights for a document POSTed inside a JSON object.
 
+    Get our Diffeo Highlighter browser extension here:
+    https://chrome.google.com/webstore/detail/jgfcplgdmjkdepnmbdkmgohaldaiplpo
+
+    While you're at it, pre-register for a beta account on
+    http://diffeo.com.
+
     The route for this endpoint is:
     ``POST /dossier/v1/highlights``.
 
@@ -290,31 +296,33 @@ def v1_highlights_post(request, response, tfidf):
     object with these keys:
 
     .. code-block:: javascript
-      {
-        // only text/html is supported at this time; hopefully PDF.js
-        // enables this to support PDF rendering too.
-        "content-type": "text/html",
 
-        // URL of the page (after resolving all redirects)
-        "content-location": "http://...",
+        {
+          // only text/html is supported at this time; hopefully PDF.js
+          // enables this to support PDF rendering too.
+          "content-type": "text/html",
 
-        // If provided by the original host, this will be populated,
-        // otherwise it is empty.
-        "last-modified": "datetime string or empty string",
+          // URL of the page (after resolving all redirects)
+          "content-location": "http://...",
 
-        // full page contents obtained by Javascript in the browser
-        // extension accessing `document.documentElement.innerHTML`.
-        // This must be UTF-8 encoded.
-        // N.B. This needs experimentation to figure out whether the
-        // browser will always encode this as Unicode.
-        "body": "... the body content ...",
-      }
+          // If provided by the original host, this will be populated,
+          // otherwise it is empty.
+          "last-modified": "datetime string or empty string",
+
+          // full page contents obtained by Javascript in the browser
+          // extension accessing `document.documentElement.innerHTML`.
+          // This must be UTF-8 encoded.
+          // N.B. This needs experimentation to figure out whether the
+          // browser will always encode this as Unicode.
+          "body": "... the body content ...",
+        }
 
 
     The output structure is a JSON UTF-8 encoded string of an
     object with these keys:
 
     .. code-block:: javascript
+
       {
         "highlights": [Highlight, Highlight, ...]
       }
@@ -323,6 +331,7 @@ def v1_highlights_post(request, response, tfidf):
     where a `Highlight` object has this structure:
 
     .. code-block:: javascript
+
       {
         // float in the range [0, 1]
         "score": 0.7
@@ -354,6 +363,7 @@ def v1_highlights_post(request, response, tfidf):
     where a Regex object is:
 
     .. code-block:: javascript
+
       {
         "regex": "...", // e.g., "[0-9]"
         "flags": "..."  // e.g., "i" for case insensitive
@@ -362,6 +372,7 @@ def v1_highlights_post(request, response, tfidf):
     where an xpath highlight object is:
 
     .. code-block:: javascript
+
       {
         "range": XPathRange
       }
@@ -369,6 +380,7 @@ def v1_highlights_post(request, response, tfidf):
     where an XpathRange object is:
 
     .. code-block:: javascript
+
       {
         "start": XPathOffset,
         "end": XPathOffset
@@ -377,6 +389,7 @@ def v1_highlights_post(request, response, tfidf):
     where an XpathOffset object is:
 
     .. code-block:: javascript
+
       {
         "node": "/html[1]/body[1]/p[1]/text()[2]",
         "idx": 4,
