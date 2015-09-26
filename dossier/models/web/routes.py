@@ -551,7 +551,7 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
     content_hash = Nilsimsa(data['body']).hexdigest()
     cache_id = doc_id + '-' + content_hash
 
-    kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
+    kvlclient.setup_namespace({'documents': (str,), 'highlights': (str,)})
     if data['no-cache'] is True:
         kvlclient.delete('highlights', (cache_id,))
         logger.info('cleared cache for %r', cache_id)
@@ -569,8 +569,8 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
 
         delay = len(data['body']) / 5000 # one second per 5KB
         if delay > 3:
-            # store the data in `pages` table
-            kvlclient.put('pages', ((cache_id,), json.dumps(data)))
+            # store the data in `documents` table
+            kvlclient.put('documents', ((cache_id,), json.dumps(data)))
 
             logger.info('launching highlights async work unit')
             conf = yakonfig.get_global_config('coordinate')
@@ -604,8 +604,8 @@ def highlights_worker(work_unit):
     with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
         cache_id = work_unit.key
-        web_conf.kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
-        payload_strs = list(web_conf.kvlclient.get('pages', (cache_id,)))
+        web_conf.kvlclient.setup_namespace({'documents': (str,), 'highlights': (str,)})
+        payload_strs = list(web_conf.kvlclient.get('documents', (cache_id,)))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
