@@ -6,7 +6,7 @@
 
 from cStringIO import StringIO
 import json
-
+from dossier.models.tests import kvl
 from dossier.models.web.routes import make_xpath_ranges, \
     build_highlight_objects, \
     v1_highlights_post
@@ -79,10 +79,11 @@ def test_build_highlight_objects_without_uniform():
 class Empty(object):
     pass
 
-def test_v1_highlights_post():
+def test_v1_highlights_post(kvl):
     request = Empty()
     request.headers = {'content-type': 'application/json'}
     data = {
+        'no-cache': True,
         'body': bad_html,
         'content-location': 'fooooo',
         'content-type': 'text/html',
@@ -91,7 +92,7 @@ def test_v1_highlights_post():
     request.body = StringIO(json.dumps(data))
     response = None
     tfidf = None
-    results = v1_highlights_post(request, response, tfidf)
+    results = v1_highlights_post(request, response, kvl, tfidf)
 
     assert results
     assert len(results['highlights']) == 2
