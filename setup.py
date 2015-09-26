@@ -67,6 +67,7 @@ setup(
         'many_stop_words',
         'nltk',
         'numpy',
+        'nilsimsa',
         'regex',
         'requests',
         'scipy',
