@@ -11,14 +11,18 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from StringIO import StringIO
+from hashlib import md5
 import logging
 import os.path as path
 import operator
+import time
+import traceback
 import urllib
 
 import bottle
 import cbor
 import json
+from nilsimsa import Nilsimsa
 from streamcorpus_pipeline import cleanse
 from streamcorpus_pipeline._clean_html import uniform_html
 from streamcorpus_pipeline.offsets import char_offsets_to_xpaths
@@ -279,8 +283,49 @@ def v0_highlighter_post(request, response, tfidf, cid):
     return {'highlights': highlights}
 
 
+COMPLETED = 'completed'
+CACHED = 'cached'
+PENDING = 'pending'
+ERROR = 'error'
+
+@app.get('/dossier/v1/highlights/<cache_id>', json=True)
+def v1_highlights_get(request, response, kvlclient, cache_id, max_elapsed = 300):
+    '''Obtain highlights for a document POSTed previously to this end
+    point.  See documentation for v1_highlights_post for further
+    details.  If the `state` is still `pending` for more than
+    `max_elapsed` after the start of the `WorkUnit`, then this reports
+    an error, although the `WorkUnit` may continue in the background.
+
+    '''
+    kvlclient.setup_namespace({'highlights': (str,)})
+    payload_strs = list(kvlclient.get('highlights', (cache_id,)))
+    if payload_strs and payload_strs[0][1]:
+        payload_str = payload_strs[0][1]
+        try:
+            payload = json.loads(payload_str)
+            if payload['state'] == PENDING and time.time() - payload['start'] > max_elapsed:
+                payload = {
+                    'state': ERROR,
+                    'error': {
+                        'code': 8,
+                        'message': 'hit timeout'}}
+                logger.critical('hit timeout on %r', cache_id)
+                kvlclient.put('highlights', ((cache_id,), json.dumps(payload)))
+            else:
+                logger.info('returning cached payload for %r', cache_id)
+            return payload
+        except Exception, exc:
+            logger.critical('failed to decode out of %r', 
+                            payload_str, exc_info=True)
+            return {
+                'state': ERROR,
+                'error': {
+                    'code': 9,
+                    'message': 'nothing known about cache_id=%r' % cache_id}
+                }
+
 @app.post('/dossier/v1/highlights', json=True)
-def v1_highlights_post(request, response, tfidf):
+def v1_highlights_post(request, response, kvlclient, tfidf):
     '''Obtain highlights for a document POSTed inside a JSON object.
 
     Get our Diffeo Highlighter browser extension here:
@@ -296,27 +341,32 @@ def v1_highlights_post(request, response, tfidf):
     object with these keys:
 
     .. code-block:: javascript
+      {
+        // only text/html is supported at this time; hopefully PDF.js
+        // enables this to support PDF rendering too.
+        "content-type": "text/html",
 
-        {
-          // only text/html is supported at this time; hopefully PDF.js
-          // enables this to support PDF rendering too.
-          "content-type": "text/html",
+        // URL of the page (after resolving all redirects)
+        "content-location": "http://...",
 
-          // URL of the page (after resolving all redirects)
-          "content-location": "http://...",
+        // If provided by the original host, this will be populated,
+        // otherwise it is empty.
+        "last-modified": "datetime string or empty string",
 
-          // If provided by the original host, this will be populated,
-          // otherwise it is empty.
-          "last-modified": "datetime string or empty string",
+        // Boolean indicating whether the content may be cached by the
+        // server.  If set to `true`, then server must respond
+        // synchronously with a newly computed response payload, and
+        // must purge any caches for this `content-location`.  If
+        // `false`, then server may respond with `state` of `pending`.
+        "no-cache": false,
 
-          // full page contents obtained by Javascript in the browser
-          // extension accessing `document.documentElement.innerHTML`.
-          // This must be UTF-8 encoded.
-          // N.B. This needs experimentation to figure out whether the
-          // browser will always encode this as Unicode.
-          "body": "... the body content ...",
-        }
-
+        // full page contents obtained by Javascript in the browser
+        // extension accessing `document.documentElement.innerHTML`.
+        // This must be UTF-8 encoded.
+        // N.B. This needs experimentation to figure out whether the
+        // browser will always encode this as Unicode.
+        "body": "... the body content ...",
+      }
 
     The output structure is a JSON UTF-8 encoded string of an
     object with these keys:
@@ -324,11 +374,37 @@ def v1_highlights_post(request, response, tfidf):
     .. code-block:: javascript
 
       {
-        "highlights": [Highlight, Highlight, ...]
+        "highlights": [Highlight, Highlight, ...],
+        "state":  State,
+        "id": CacheID,
+        "delay": 10.0,
+        "error": Error
       }
 
+    where a `State` is one of these strings: `completed`, `cached`,
+    `pending`, or `error`.  The `CacheID` is an opaque string computed
+    by the backend that the client can use to poll this end point with
+    `GET` requests for a `pending` request.  The `delay` value is a
+    number of seconds that the client should wait before beginning
+    polling, e.g. ten seconds.
 
-    where a `Highlight` object has this structure:
+    An `Error` object has this structure:
+
+    .. code-block:: javascript
+      {
+
+        // Error codes are (0, wrong content type), (1, empty body),
+        // (2, JSON decode error), (3, payload structure incorrect),
+        // (4, payload missing required keys), (5, invalid
+        // content-location), (6, too small body content), (7,
+        // internal error), (8, internal time out), (9, cache_id does
+        // not exist)
+        "code": 0,
+
+        "message": "wrong content_type"
+      }
+
+    A `Highlight` object has this structure:
 
     .. code-block:: javascript
 
@@ -406,6 +482,7 @@ def v1_highlights_post(request, response, tfidf):
         logger.critical('content-type=%r', content_type)
         response.status = 415
         return {
+	    'state': ERROR,
             'error': {
                 'code': 0,
                 'message': 'content_type=%r and should be '
@@ -416,12 +493,16 @@ def v1_highlights_post(request, response, tfidf):
     body = request.body.read()
     if len(body) == 0:
         response.status = 400
-        return {'error': {'code': 1, 'message': 'empty body'}}
+        return {
+            'state': ERROR,
+            'error': {'code': 1, 'message': 'empty body'}
+        }
     try:
         data = json.loads(body.decode('utf-8'))
     except Exception, exc:
         response.status = 400
         return {
+	    'state': ERROR,
             'error': {
                 'code': 2,
                 'message':
@@ -432,30 +513,34 @@ def v1_highlights_post(request, response, tfidf):
     if not isinstance(data, dict):
         response.status = 400
         return {
+	    'state': ERROR,
             'error': {
                 'code': 3,
-                'message': 'JSON payload deserialized to other than '
-                           'an object: %r' % type(data),
+                'message': 'JSON request payload deserialized to'
+                      ' other than an object: %r' % type(data),
             },
         }
 
     expected_keys = set([
         'content-type', 'content-location', 'last-modified', 'body',
+	'no-cache',
     ])
     if set(data.keys()) != expected_keys:
         response.status = 400
         return {
+	    'state': ERROR,
             'error': {
                 'code': 4,
                 'message': 'other than expected keys in JSON object. '
                            'Expected %r and received %r'
-                           % (expected_keys, set(data.keys())),
+                           % (sorted(expected_keys), sorted(data.keys())),
             },
         }
 
     if len(data['content-location']) < 3:
         response.status = 400
         return {
+	    'state': ERROR,
             'error': {
                 'code': 5,
                 'message': 'received invalid content-location=%r'
@@ -466,37 +551,165 @@ def v1_highlights_post(request, response, tfidf):
     if len(data['body']) < 3:
         response.status = 400
         return {
+	    'state': ERROR,
             'error': {
                 'code': 6,
                 'message': 'received too little body=%r' % data['body'],
             },
         }
 
-    fc = etl.create_fc_from_html(
-        data['content-location'], data['body'], tfidf=tfidf, encoding=None)
+    doc_id = md5(data['content-location']).hexdigest()
+    content_hash = Nilsimsa(data['body']).hexdigest()
+    cache_id = doc_id + '-' + content_hash
+
+    kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
+    if data['no-cache'] is True:
+        kvlclient.delete('highlights', (cache_id,))
+        logger.info('cleared cache for %r', cache_id)
+    else: # use of cache is allowed
+        payload_strs = list(kvlclient.get('highlights', (cache_id,)))
+        if payload_strs and payload_strs[0][1]:
+            payload_str = payload_strs[0][1]
+            try:
+                payload = json.loads(payload_str)
+                logger.info('returning cached payload for %r', cache_id)
+                return payload
+            except Exception, exc:
+                logger.critical('failed to decode out of %r', 
+                                payload_str, exc_info=True)
+
+        delay = len(data['body']) / 5000 # one second per 5KB
+        if delay > 3:
+            # store the data in `pages` table
+            kvlclient.put('pages', ((cache_id,), json.dumps(data)))
+
+            logger.info('launching highlights async work unit')
+            conf = yakonfig.get_global_config('coordinate')
+            tm = coordinate.TaskMaster(conf)
+            tm.add_work_units('highlights', [(cache_id, {})])
+
+            payload = {
+                'state': PENDING,
+                'id': cache_id,
+                'delay': delay,
+                'start': time.time()
+            }
+            # store the payload, so that it gets returned during
+            # polling until replaced by the work unit.
+            payload_str = json.dumps(payload)
+            kvlclient.put('highlights', ((cache_id,), payload_str))
+            return payload
+
+    return maybe_cache_highlights(cache_id, data, tfidf, kvlclient)
+
+
+def highlights_worker(work_unit):
+    '''coordinate worker wrapper around :func:`maybe_create_highlights`
+    '''
+    if 'config' not in work_unit.spec:
+        raise coordinate.exceptions.ProgrammerError(
+            'could not run `create_highlights` without global config')
+
+    web_conf = Config()
+    unitconf = work_unit.spec['config']
+    with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
+                                   config=unitconf):
+        cache_id = work_unit.key
+        web_conf.kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
+        payload_strs = list(web_conf.kvlclient.get('pages', (cache_id,)))
+        if payload_strs and payload_strs[0][1]:
+            payload_str = payload_strs[0][1]
+            try:
+                data = json.loads(payload_str)
+                # now create the response payload
+                maybe_cache_highlights(cache_id, data, web_conf.tfidf, web_conf.kvlclient)
+            except Exception, exc:
+                logger.critical('failed to decode data out of %r', 
+                                payload_str, exc_info=True)
+                payload = {
+                    'state': ERROR,
+                    'error': {
+                        'code': 7,
+                        'message': 'failed to generate cached results:\n%s' % \
+                        traceback.format_exc(exc)}
+                    }
+                payload_str = json.dumps(payload)
+                kvlclient.put('highlights', ((cache_id,), payload_str))
+                
+
+def maybe_cache_highlights(cache_id, data, tfidf, kvlclient):
+    '''wrapper around :func:`create_highlights` that stores the response
+    payload in the `kvlayer` table called `highlights` as a cached
+    value if data['no-cache'] is `False`.  This allows error values as
+    well as successful responses from :func:`create_highlights` to
+    both get cached.
+
+    '''
+    payload = create_highlights(data, tfidf)
+    if data['no-cache'] is False:
+        cached_payload = {}
+        cached_payload.update(payload)
+        cached_payload['state'] = CACHED
+        payload_str = json.dumps(cached_payload)
+        kvlclient.put('highlights', ((cache_id,), payload_str))
+    return payload
+
+
+def create_highlights(data, tfidf):
+    '''compute highlights for `data`, store it in the cache using
+    `kvlclient`, and return a `highlights` response payload.
+
+    '''
+    try:
+        fc = etl.create_fc_from_html(
+            data['content-location'], data['body'], tfidf=tfidf, encoding=None)
+    except Exception, exc:
+        logger.critical('failed to build FC', exc_info=True)
+        return {
+            'state': ERROR,
+            'error': {'code': 7,
+                      'message': 'internal error: %s' % traceback.format_exc(exc),
+                      }
+        }
     if fc is None:
         logger.critical('failed to get FC using %d bytes from %r',
                         len(body), data['content-location'])
         response.status = 500
         return {
+            'state': ERROR,
             'error': {
-                'code': 2,
-                'message': 'FC not generated for that content',
+                'code': 7,
+                'message': 'internal error: FC not generated for that content',
             },
         }
-    highlights = dict()
-    for feature_name, pretty_name in feature_pretty_names:
-        # Each type of string is
-        if feature_name not in fc:
-            continue
-        total = sum(fc[feature_name].values())
-        bow = sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)
-        highlights[pretty_name] = [(phrase, count / total)
-                                   for phrase, count in bow]
-        logger.info('%r and %d keys',
-                    feature_name, len(highlights[pretty_name]))
+    try:
+        highlights = dict()
+        for feature_name, pretty_name in feature_pretty_names:
+            # Each type of string is
+            if feature_name not in fc:
+                continue
+            total = sum(fc[feature_name].values())
+            bow = sorted(fc[feature_name].items(), key=itemgetter(1), reverse=True)
+            highlights[pretty_name] = [(phrase, count / total)
+                                       for phrase, count in bow]
+            logger.info('%r and %d keys',
+                        feature_name, len(highlights[pretty_name]))
 
-    return {'highlights': build_highlight_objects(data['body'], highlights)}
+        highlight_objs = build_highlight_objects(data['body'], highlights)
+    except Exception, exc:
+        logger.critical('failed to build highlights', exc_info=True)
+        return {
+            'state': ERROR,
+            'error': {'code': 7,
+                      'message': 'internal error: %s' % traceback.format_exc(exc),
+                      }
+        }
+
+    payload = {
+        'highlights': highlight_objs,
+        'state': COMPLETED,
+    }
+    return payload
 
 
 def build_highlight_objects(html, highlights, uniformize_html=True):
