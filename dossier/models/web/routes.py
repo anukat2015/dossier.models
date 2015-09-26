@@ -493,7 +493,7 @@ def build_highlight_objects(html, highlights, uniformize_html=True):
     '''
     if uniformize_html:
         try:
-            html = uniform_html(html).decode('utf-8')
+            html = uniform_html(html.encode('utf-8')).decode('utf-8')
         except Exception, exc:
             logger.info('failed to get uniform_html(%d bytes) --> %s',
                         len(html), exc, exc_info=True)
