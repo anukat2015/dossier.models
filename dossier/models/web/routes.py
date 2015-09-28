@@ -295,8 +295,8 @@ def make_file_id(file_id_str):
     doc_id, last_modified, content_hash = file_id_str.split('-')
     return doc_id, int(last_modified), content_hash
 
-@app.get('/dossier/v1/highlights/<store_id_str>', json=True)
-def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
+@app.get('/dossier/v1/highlights/<file_id_str>', json=True)
+def v1_highlights_get(response, kvlclient, file_id_str, max_elapsed = 300):
     '''Obtain highlights for a document POSTed previously to this end
     point.  See documentation for v1_highlights_post for further
     details.  If the `state` is still `pending` for more than
@@ -304,9 +304,9 @@ def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
     an error, although the `WorkUnit` may continue in the background.
 
     '''
-    store_id = make_file_id(store_id_str)
+    file_id = make_file_id(file_id_str)
     kvlclient.setup_namespace(highlights_kvlayer_tables)
-    payload_strs = list(kvlclient.get('highlights', store_id))
+    payload_strs = list(kvlclient.get('highlights', file_id))
     if not (payload_strs and payload_strs[0][1]):
         response.status = 500
         payload = {
@@ -314,7 +314,7 @@ def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
             'error': {
                 'code': 8,
                 'message': 'unknown error'}}
-        logger.critical('got bogus info for %r: %r', store_id, payload_strs)
+        logger.critical('got bogus info for %r: %r', file_id, payload_strs)
     else:
         payload_str = payload_strs[0][1]
         try:
@@ -328,11 +328,11 @@ def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
                         'error': {
                             'code': 8,
                             'message': 'hit timeout'}}
-                    logger.critical('hit timeout on %r', store_id)
-                    kvlclient.put('highlights', (store_id, json.dumps(payload)))
+                    logger.critical('hit timeout on %r', file_id)
+                    kvlclient.put('highlights', (file_id, json.dumps(payload)))
                 else:
                     payload['elapsed'] = elapsed
-            logger.info('returning stored payload for %r', store_id)
+            logger.info('returning stored payload for %r', file_id)
         except Exception, exc:
             logger.critical('failed to decode out of %r', 
                             payload_str, exc_info=True)
@@ -341,7 +341,7 @@ def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
                 'state': ERROR,
                 'error': {
                     'code': 9,
-                    'message': 'nothing known about store_id=%r' % store_id}
+                    'message': 'nothing known about file_id=%r' % file_id}
                 }
     # only place where payload is returned
     return payload
@@ -417,7 +417,7 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
         // (2, JSON decode error), (3, payload structure incorrect),
         // (4, payload missing required keys), (5, invalid
         // content-location), (6, too small body content), (7,
-        // internal error), (8, internal time out), (9, store_id does
+        // internal error), (8, internal time out), (9, file_id does
         // not exist)
         "code": 0,
 
@@ -583,16 +583,16 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
         last_modified = 0
     doc_id = md5(data['content-location']).hexdigest()
     content_hash = Nilsimsa(data['body']).hexdigest()
-    store_id = (doc_id, last_modified, content_hash)
-    store_id_str = '%s-%d-%s' % store_id
+    file_id = (doc_id, last_modified, content_hash)
+    file_id_str = '%s-%d-%s' % file_id
 
     kvlclient.setup_namespace(highlights_kvlayer_tables)
     if data['store'] is False:
-        kvlclient.delete('files', (store_id[0],))
-        kvlclient.delete('highlights', (store_id[0],))
-        logger.info('cleared all store records related to doc_id=%r', store_id[0])
+        kvlclient.delete('files', (file_id[0],))
+        kvlclient.delete('highlights', (file_id[0],))
+        logger.info('cleared all store records related to doc_id=%r', file_id[0])
     else: # storing is allowed
-        payload_strs = list(kvlclient.get('highlights', store_id))
+        payload_strs = list(kvlclient.get('highlights', file_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
@@ -601,7 +601,7 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
                 logger.critical('failed to decode out of %r', 
                                 payload_str, exc_info=True)
             if payload['state'] != ERROR:
-                logger.info('returning stored payload for %r', store_id)
+                logger.info('returning stored payload for %r', file_id)
                 return payload
             else:
                 logger.info('previously stored data was an error so trying again')
@@ -609,27 +609,27 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
         delay = len(data['body']) / 5000 # one second per 5KB
         if delay > min_delay:
             # store the data in `files` table
-            kvlclient.put('files', (store_id, json.dumps(data)))
+            kvlclient.put('files', (file_id, json.dumps(data)))
             payload = {
                 'state': HIGHLIGHTS_PENDING,
-                'id': store_id_str,
+                'id': file_id_str,
                 'delay': delay,
                 'start': time.time()
             }
             # store the payload, so that it gets returned during
             # polling until replaced by the work unit.
             payload_str = json.dumps(payload)
-            kvlclient.put('highlights', (store_id, payload_str))
+            kvlclient.put('highlights', (file_id, payload_str))
 
             logger.info('launching highlights async work unit')
             if task_master is None:
                 conf = yakonfig.get_global_config('coordinate')
                 task_master = coordinate.TaskMaster(conf)
-            task_master.add_work_units('highlights', [(store_id_str, {})])
+            task_master.add_work_units('highlights', [(file_id_str, {})])
 
             return payload
 
-    return maybe_store_highlights(store_id, data, tfidf, kvlclient)
+    return maybe_store_highlights(file_id, data, tfidf, kvlclient)
 
 
 def highlights_worker(work_unit):
@@ -643,15 +643,15 @@ def highlights_worker(work_unit):
     unitconf = work_unit.spec['config']
     with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
-        store_id = make_file_id(work_unit.key)
+        file_id = make_file_id(work_unit.key)
         web_conf.kvlclient.setup_namespace(highlights_kvlayer_tables)
-        payload_strs = list(web_conf.kvlclient.get('files', store_id))
+        payload_strs = list(web_conf.kvlclient.get('files', file_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
                 data = json.loads(payload_str)
                 # now create the response payload
-                maybe_store_highlights(store_id, data, web_conf.tfidf, web_conf.kvlclient)
+                maybe_store_highlights(file_id, data, web_conf.tfidf, web_conf.kvlclient)
             except Exception, exc:
                 logger.critical('failed to decode data out of %r', 
                                 payload_str, exc_info=True)
@@ -663,10 +663,10 @@ def highlights_worker(work_unit):
                         traceback.format_exc(exc)}
                     }
                 payload_str = json.dumps(payload)
-                kvlclient.put('highlights', (store_id, payload_str))
+                kvlclient.put('highlights', (file_id, payload_str))
                 
 
-def maybe_store_highlights(store_id, data, tfidf, kvlclient):
+def maybe_store_highlights(file_id, data, tfidf, kvlclient):
     '''wrapper around :func:`create_highlights` that stores the response
     payload in the `kvlayer` table called `highlights` as a stored
     value if data['store'] is `False`.  This allows error values as
@@ -680,7 +680,7 @@ def maybe_store_highlights(store_id, data, tfidf, kvlclient):
         stored_payload.update(payload)
         stored_payload['state'] = STORED
         payload_str = json.dumps(stored_payload)
-        kvlclient.put('highlights', (store_id, payload_str))
+        kvlclient.put('highlights', (file_id, payload_str))
     return payload
 
 
