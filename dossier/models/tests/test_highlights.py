@@ -6,11 +6,19 @@
 
 from cStringIO import StringIO
 import json
-from dossier.models.tests import kvl
-from dossier.models.web.routes import make_xpath_ranges, \
-    build_highlight_objects, \
-    v1_highlights_post
+import logging
+import pytest
+import time
 
+from dossier.models.tests import kvl
+from dossier.models.tests.test_web import tfidf, tfidf_path
+from dossier.models.web.routes import make_xpath_ranges, \
+    highlights_worker, \
+    build_highlight_objects, \
+    v1_highlights_post, \
+    v1_highlights_get
+
+logger = logging.getLogger(__name__)
 
 good_html = '''
 <html>
@@ -76,25 +84,77 @@ def test_build_highlight_objects_without_uniform():
     assert len(highlights[0]['regexes']) == 1
 
 
+class MockTaskMaster(object):
+    def __init__(self, kvl, tfidf_path):
+        self.config = {
+            'kvlayer': kvl._config,
+            'dossier.models': {'tfidf_path': tfidf_path},
+            }
+
+    def add_work_units(self, name_space, work_units):
+        '''This mock of :class:`coordinate.TaskMaster` calls
+        `highlights_worker` directly instead of letting the
+        `coordinate_worker` run it asynchronously.  To do this, it
+        builds a sufficiently real duck-typed
+        :class:`coordinate.WorkUnit` that it can run
+        `highlights_worker` in its normal way.
+
+        '''
+        wu = Empty()
+        wu.spec = {'config': self.config}
+        wu.key = work_units[0][0]
+        highlights_worker(wu)
+
+
 class Empty(object):
     pass
 
-def test_v1_highlights_post(kvl):
+def basic_post(kvl, tfidf, allow_store, mock_tm):
     request = Empty()
     request.headers = {'content-type': 'application/json'}
     data = {
-        'no-cache': True,
+        'store': allow_store,
         'body': bad_html,
         'content-location': 'fooooo',
         'content-type': 'text/html',
         'last-modified': '',
         }
     request.body = StringIO(json.dumps(data))
-    response = None
-    tfidf = None
-    results = v1_highlights_post(request, response, kvl, tfidf)
+    response = Empty()
+    results = v1_highlights_post(request, response, kvl, tfidf, 
+                                 min_delay=0, task_master=mock_tm)
+
+    max_loops = 10
+    loops = 0
+    while results['state'] == 'pending' and loops < max_loops:
+        loops += 1
+        results = v1_highlights_get(response, kvl, results['id'])
+        logger.info(results)
+        time.sleep(0.1)
 
     assert results
     assert len(results['highlights']) == 2
     assert len(results['highlights'][0]['regexes']) == 1
     assert len(results['highlights'][1]['xranges']) == 1
+
+    return results
+
+steps = [
+    (False, 'completed'),
+    (True, 'stored'),
+    (True, 'stored'),
+    (True, 'stored'),
+    (False, 'completed'),
+    (False, 'completed'),
+    (True, 'stored'),
+    (True, 'stored'),
+    (True, 'stored'),
+    (False, 'completed'),
+]
+
+def test_v1_highlights_post(kvl, tfidf_path, tfidf):
+    mock_tm = MockTaskMaster(kvl, tfidf_path)
+    for idx, (allow_store, state) in enumerate(steps):
+        logger.info('step=%d, allow_store=%r, state=%r', idx, allow_store, state)
+        results = basic_post(kvl, tfidf, allow_store, mock_tm)
+        assert results['state'] == state

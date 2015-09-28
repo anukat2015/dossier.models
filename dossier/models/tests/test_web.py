@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+import os
 
 try:
     from gensim import corpora, models
@@ -23,6 +24,10 @@ def tfidf():
     bows = [dictionary.doc2bow(tokens) for tokens in corpus]
     return models.TfidfModel(bows, id2word=dictionary)
 
+@pytest.fixture
+def tfidf_path():
+    dir_name = os.path.dirname(__file__)
+    return os.path.join(dir_name, 'tfidf_model.dump')
 
 # def test_fc_generator(tfidf):
     # print(tfidf)
