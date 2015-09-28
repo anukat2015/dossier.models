@@ -289,9 +289,14 @@ COMPLETED = 'completed'
 STORED = 'stored'
 HIGHLIGHTS_PENDING = 'pending'
 ERROR = 'error'
+highlights_kvlayer_tables = {'files': (str, int, str), 'highlights': (str, int, str)}
 
-@app.get('/dossier/v1/highlights/<store_id>', json=True)
-def v1_highlights_get(response, kvlclient, store_id, max_elapsed = 300):
+def make_file_id(file_id_str):
+    doc_id, last_modified, content_hash = file_id_str.split('-')
+    return doc_id, int(last_modified), content_hash
+
+@app.get('/dossier/v1/highlights/<store_id_str>', json=True)
+def v1_highlights_get(response, kvlclient, store_id_str, max_elapsed = 300):
     '''Obtain highlights for a document POSTed previously to this end
     point.  See documentation for v1_highlights_post for further
     details.  If the `state` is still `pending` for more than
@@ -299,8 +304,9 @@ def v1_highlights_get(response, kvlclient, store_id, max_elapsed = 300):
     an error, although the `WorkUnit` may continue in the background.
 
     '''
-    kvlclient.setup_namespace({'highlights': (str,)})
-    payload_strs = list(kvlclient.get('highlights', (store_id,)))
+    store_id = make_file_id(store_id_str)
+    kvlclient.setup_namespace(highlights_kvlayer_tables)
+    payload_strs = list(kvlclient.get('highlights', store_id))
     if not (payload_strs and payload_strs[0][1]):
         response.status = 500
         payload = {
@@ -323,7 +329,7 @@ def v1_highlights_get(response, kvlclient, store_id, max_elapsed = 300):
                             'code': 8,
                             'message': 'hit timeout'}}
                     logger.critical('hit timeout on %r', store_id)
-                    kvlclient.put('highlights', ((store_id,), json.dumps(payload)))
+                    kvlclient.put('highlights', (store_id, json.dumps(payload)))
                 else:
                     payload['elapsed'] = elapsed
             logger.info('returning stored payload for %r', store_id)
@@ -577,15 +583,16 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
         last_modified = 0
     doc_id = md5(data['content-location']).hexdigest()
     content_hash = Nilsimsa(data['body']).hexdigest()
-    store_id = '%d-%s-%s' % (last_modified, doc_id, content_hash)
+    store_id = (doc_id, last_modified, content_hash)
+    store_id_str = '%s-%d-%s' % store_id
 
-    kvlclient.setup_namespace({'files': (str,), 'highlights': (str,)})
+    kvlclient.setup_namespace(highlights_kvlayer_tables)
     if data['store'] is False:
-        kvlclient.delete('files', (store_id,))
-        kvlclient.delete('highlights', (store_id,))
-        logger.info('cleared store for %r', store_id)
+        kvlclient.delete('files', (store_id[0],))
+        kvlclient.delete('highlights', (store_id[0],))
+        logger.info('cleared all store records related to doc_id=%r', store_id[0])
     else: # storing is allowed
-        payload_strs = list(kvlclient.get('highlights', (store_id,)))
+        payload_strs = list(kvlclient.get('highlights', store_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
@@ -602,23 +609,23 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
         delay = len(data['body']) / 5000 # one second per 5KB
         if delay > min_delay:
             # store the data in `files` table
-            kvlclient.put('files', ((store_id,), json.dumps(data)))
+            kvlclient.put('files', (store_id, json.dumps(data)))
             payload = {
                 'state': HIGHLIGHTS_PENDING,
-                'id': store_id,
+                'id': store_id_str,
                 'delay': delay,
                 'start': time.time()
             }
             # store the payload, so that it gets returned during
             # polling until replaced by the work unit.
             payload_str = json.dumps(payload)
-            kvlclient.put('highlights', ((store_id,), payload_str))
+            kvlclient.put('highlights', (store_id, payload_str))
 
             logger.info('launching highlights async work unit')
             if task_master is None:
                 conf = yakonfig.get_global_config('coordinate')
                 task_master = coordinate.TaskMaster(conf)
-            task_master.add_work_units('highlights', [(store_id, {})])
+            task_master.add_work_units('highlights', [(store_id_str, {})])
 
             return payload
 
@@ -636,9 +643,9 @@ def highlights_worker(work_unit):
     unitconf = work_unit.spec['config']
     with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
-        store_id = work_unit.key
-        web_conf.kvlclient.setup_namespace({'files': (str,), 'highlights': (str,)})
-        payload_strs = list(web_conf.kvlclient.get('files', (store_id,)))
+        store_id = make_file_id(work_unit.key)
+        web_conf.kvlclient.setup_namespace(highlights_kvlayer_tables)
+        payload_strs = list(web_conf.kvlclient.get('files', store_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
@@ -656,7 +663,7 @@ def highlights_worker(work_unit):
                         traceback.format_exc(exc)}
                     }
                 payload_str = json.dumps(payload)
-                kvlclient.put('highlights', ((store_id,), payload_str))
+                kvlclient.put('highlights', (store_id, payload_str))
                 
 
 def maybe_store_highlights(store_id, data, tfidf, kvlclient):
@@ -673,7 +680,7 @@ def maybe_store_highlights(store_id, data, tfidf, kvlclient):
         stored_payload.update(payload)
         stored_payload['state'] = STORED
         payload_str = json.dumps(stored_payload)
-        kvlclient.put('highlights', ((store_id,), payload_str))
+        kvlclient.put('highlights', (store_id, payload_str))
     return payload
 
 
