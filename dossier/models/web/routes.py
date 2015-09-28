@@ -6,7 +6,8 @@
 from __future__ import absolute_import, division, print_function
 
 from collections import defaultdict
-from operator import itemgetter
+import datetime
+import email.utils as eut
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -15,6 +16,7 @@ from hashlib import md5
 import logging
 import os.path as path
 import operator
+from operator import itemgetter
 import time
 import traceback
 import urllib
@@ -284,12 +286,17 @@ def v0_highlighter_post(request, response, tfidf, cid):
 
 
 COMPLETED = 'completed'
-CACHED = 'cached'
-PENDING = 'pending'
+STORED = 'stored'
+HIGHLIGHTS_PENDING = 'pending'
 ERROR = 'error'
+highlights_kvlayer_tables = {'files': (str, int, str), 'highlights': (str, int, str)}
 
-@app.get('/dossier/v1/highlights/<cache_id>', json=True)
-def v1_highlights_get(request, response, kvlclient, cache_id, max_elapsed = 300):
+def make_file_id(file_id_str):
+    doc_id, last_modified, content_hash = file_id_str.split('-')
+    return doc_id, int(last_modified), content_hash
+
+@app.get('/dossier/v1/highlights/<file_id_str>', json=True)
+def v1_highlights_get(response, kvlclient, file_id_str, max_elapsed = 300):
     '''Obtain highlights for a document POSTed previously to this end
     point.  See documentation for v1_highlights_post for further
     details.  If the `state` is still `pending` for more than
@@ -297,35 +304,52 @@ def v1_highlights_get(request, response, kvlclient, cache_id, max_elapsed = 300)
     an error, although the `WorkUnit` may continue in the background.
 
     '''
-    kvlclient.setup_namespace({'highlights': (str,)})
-    payload_strs = list(kvlclient.get('highlights', (cache_id,)))
-    if payload_strs and payload_strs[0][1]:
+    file_id = make_file_id(file_id_str)
+    kvlclient.setup_namespace(highlights_kvlayer_tables)
+    payload_strs = list(kvlclient.get('highlights', file_id))
+    if not (payload_strs and payload_strs[0][1]):
+        response.status = 500
+        payload = {
+            'state': ERROR,
+            'error': {
+                'code': 8,
+                'message': 'unknown error'}}
+        logger.critical('got bogus info for %r: %r', file_id, payload_strs)
+    else:
         payload_str = payload_strs[0][1]
         try:
             payload = json.loads(payload_str)
-            if payload['state'] == PENDING and time.time() - payload['start'] > max_elapsed:
-                payload = {
-                    'state': ERROR,
-                    'error': {
-                        'code': 8,
-                        'message': 'hit timeout'}}
-                logger.critical('hit timeout on %r', cache_id)
-                kvlclient.put('highlights', ((cache_id,), json.dumps(payload)))
-            else:
-                logger.info('returning cached payload for %r', cache_id)
-            return payload
+            if payload['state'] == HIGHLIGHTS_PENDING:
+                elapsed = time.time() - payload.get('start', 0)
+                if elapsed > max_elapsed:
+                    response.status = 500
+                    payload = {
+                        'state': ERROR,
+                        'error': {
+                            'code': 8,
+                            'message': 'hit timeout'}}
+                    logger.critical('hit timeout on %r', file_id)
+                    kvlclient.put('highlights', (file_id, json.dumps(payload)))
+                else:
+                    payload['elapsed'] = elapsed
+            logger.info('returning stored payload for %r', file_id)
         except Exception, exc:
             logger.critical('failed to decode out of %r', 
                             payload_str, exc_info=True)
-            return {
+            response.status = 400
+            payload = {
                 'state': ERROR,
                 'error': {
                     'code': 9,
-                    'message': 'nothing known about cache_id=%r' % cache_id}
+                    'message': 'nothing known about file_id=%r' % file_id}
                 }
+    # only place where payload is returned
+    return payload
+
 
 @app.post('/dossier/v1/highlights', json=True)
-def v1_highlights_post(request, response, kvlclient, tfidf):
+def v1_highlights_post(request, response, kvlclient, tfidf, 
+                       min_delay=3, task_master=None):
     '''Obtain highlights for a document POSTed inside a JSON object.
 
     Get our Diffeo Highlighter browser extension here:
@@ -333,6 +357,8 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
 
     While you're at it, pre-register for a beta account on
     http://diffeo.com.
+
+    `min_delay` and `task_master` are used by tests.
 
     The route for this endpoint is:
     ``POST /dossier/v1/highlights``.
@@ -353,12 +379,12 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
         // otherwise it is empty.
         "last-modified": "datetime string or empty string",
 
-        // Boolean indicating whether the content may be cached by the
-        // server.  If set to `true`, then server must respond
+        // Boolean indicating whether the content may be stored by the
+        // server.  If set to `false`, then server must respond
         // synchronously with a newly computed response payload, and
-        // must purge any caches for this `content-location`.  If
-        // `false`, then server may respond with `state` of `pending`.
-        "no-cache": false,
+        // must purge any stored copies of this `content-location`.
+        // If `true`, server may respond with `state` of `pending`.
+        "store": false,
 
         // full page contents obtained by Javascript in the browser
         // extension accessing `document.documentElement.innerHTML`.
@@ -376,13 +402,13 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
       {
         "highlights": [Highlight, Highlight, ...],
         "state":  State,
-        "id": CacheID,
+        "id": StoreID,
         "delay": 10.0,
         "error": Error
       }
 
-    where a `State` is one of these strings: `completed`, `cached`,
-    `pending`, or `error`.  The `CacheID` is an opaque string computed
+    where a `State` is one of these strings: `completed`, `stored`,
+    `pending`, or `error`.  The `StoreID` is an opaque string computed
     by the backend that the client can use to poll this end point with
     `GET` requests for a `pending` request.  The `delay` value is a
     number of seconds that the client should wait before beginning
@@ -397,7 +423,7 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
         // (2, JSON decode error), (3, payload structure incorrect),
         // (4, payload missing required keys), (5, invalid
         // content-location), (6, too small body content), (7,
-        // internal error), (8, internal time out), (9, cache_id does
+        // internal error), (8, internal time out), (9, file_id does
         // not exist)
         "code": 0,
 
@@ -523,7 +549,7 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
 
     expected_keys = set([
         'content-type', 'content-location', 'last-modified', 'body',
-	'no-cache',
+	'store',
     ])
     if set(data.keys()) != expected_keys:
         response.status = 400
@@ -558,49 +584,63 @@ def v1_highlights_post(request, response, kvlclient, tfidf):
             },
         }
 
+    if data['last-modified']:
+        try:
+            last_modified = int(datetime.datetime(*eut.parsedate(data['last-modified'])[:6]).strftime('%s'))
+        except Exception, exc:
+            logger.info('failed to parse last-modified=%r', data['last-modified'])
+            last_modified = 0
+    else:
+        last_modified = 0
     doc_id = md5(data['content-location']).hexdigest()
     content_hash = Nilsimsa(data['body']).hexdigest()
-    cache_id = doc_id + '-' + content_hash
+    file_id = (doc_id, last_modified, content_hash)
+    file_id_str = '%s-%d-%s' % file_id
 
-    kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
-    if data['no-cache'] is True:
-        kvlclient.delete('highlights', (cache_id,))
-        logger.info('cleared cache for %r', cache_id)
-    else: # use of cache is allowed
-        payload_strs = list(kvlclient.get('highlights', (cache_id,)))
+    kvlclient.setup_namespace(highlights_kvlayer_tables)
+    if data['store'] is False:
+        kvlclient.delete('files', (file_id[0],))
+        kvlclient.delete('highlights', (file_id[0],))
+        logger.info('cleared all store records related to doc_id=%r', file_id[0])
+    else: # storing is allowed
+        payload_strs = list(kvlclient.get('highlights', file_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
                 payload = json.loads(payload_str)
-                logger.info('returning cached payload for %r', cache_id)
-                return payload
             except Exception, exc:
                 logger.critical('failed to decode out of %r', 
                                 payload_str, exc_info=True)
+            if payload['state'] != ERROR:
+                logger.info('returning stored payload for %r', file_id)
+                return payload
+            else:
+                logger.info('previously stored data was an error so trying again')
 
         delay = len(data['body']) / 5000 # one second per 5KB
-        if delay > 3:
-            # store the data in `pages` table
-            kvlclient.put('pages', ((cache_id,), json.dumps(data)))
-
-            logger.info('launching highlights async work unit')
-            conf = yakonfig.get_global_config('coordinate')
-            tm = coordinate.TaskMaster(conf)
-            tm.add_work_units('highlights', [(cache_id, {})])
-
+        if delay > min_delay:
+            # store the data in `files` table
+            kvlclient.put('files', (file_id, json.dumps(data)))
             payload = {
-                'state': PENDING,
-                'id': cache_id,
+                'state': HIGHLIGHTS_PENDING,
+                'id': file_id_str,
                 'delay': delay,
                 'start': time.time()
             }
             # store the payload, so that it gets returned during
             # polling until replaced by the work unit.
             payload_str = json.dumps(payload)
-            kvlclient.put('highlights', ((cache_id,), payload_str))
+            kvlclient.put('highlights', (file_id, payload_str))
+
+            logger.info('launching highlights async work unit')
+            if task_master is None:
+                conf = yakonfig.get_global_config('coordinate')
+                task_master = coordinate.TaskMaster(conf)
+            task_master.add_work_units('highlights', [(file_id_str, {})])
+
             return payload
 
-    return maybe_cache_highlights(cache_id, data, tfidf, kvlclient)
+    return maybe_store_highlights(file_id, data, tfidf, kvlclient)
 
 
 def highlights_worker(work_unit):
@@ -614,15 +654,15 @@ def highlights_worker(work_unit):
     unitconf = work_unit.spec['config']
     with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
-        cache_id = work_unit.key
-        web_conf.kvlclient.setup_namespace({'pages': (str,), 'highlights': (str,)})
-        payload_strs = list(web_conf.kvlclient.get('pages', (cache_id,)))
+        file_id = make_file_id(work_unit.key)
+        web_conf.kvlclient.setup_namespace(highlights_kvlayer_tables)
+        payload_strs = list(web_conf.kvlclient.get('files', file_id))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
                 data = json.loads(payload_str)
                 # now create the response payload
-                maybe_cache_highlights(cache_id, data, web_conf.tfidf, web_conf.kvlclient)
+                maybe_store_highlights(file_id, data, web_conf.tfidf, web_conf.kvlclient)
             except Exception, exc:
                 logger.critical('failed to decode data out of %r', 
                                 payload_str, exc_info=True)
@@ -630,33 +670,33 @@ def highlights_worker(work_unit):
                     'state': ERROR,
                     'error': {
                         'code': 7,
-                        'message': 'failed to generate cached results:\n%s' % \
+                        'message': 'failed to generate stored results:\n%s' % \
                         traceback.format_exc(exc)}
                     }
                 payload_str = json.dumps(payload)
-                kvlclient.put('highlights', ((cache_id,), payload_str))
+                kvlclient.put('highlights', (file_id, payload_str))
                 
 
-def maybe_cache_highlights(cache_id, data, tfidf, kvlclient):
+def maybe_store_highlights(file_id, data, tfidf, kvlclient):
     '''wrapper around :func:`create_highlights` that stores the response
-    payload in the `kvlayer` table called `highlights` as a cached
-    value if data['no-cache'] is `False`.  This allows error values as
+    payload in the `kvlayer` table called `highlights` as a stored
+    value if data['store'] is `False`.  This allows error values as
     well as successful responses from :func:`create_highlights` to
-    both get cached.
+    both get stored.
 
     '''
     payload = create_highlights(data, tfidf)
-    if data['no-cache'] is False:
-        cached_payload = {}
-        cached_payload.update(payload)
-        cached_payload['state'] = CACHED
-        payload_str = json.dumps(cached_payload)
-        kvlclient.put('highlights', ((cache_id,), payload_str))
+    if data['store'] is True:
+        stored_payload = {}
+        stored_payload.update(payload)
+        stored_payload['state'] = STORED
+        payload_str = json.dumps(stored_payload)
+        kvlclient.put('highlights', (file_id, payload_str))
     return payload
 
 
 def create_highlights(data, tfidf):
-    '''compute highlights for `data`, store it in the cache using
+    '''compute highlights for `data`, store it in the store using
     `kvlclient`, and return a `highlights` response payload.
 
     '''
