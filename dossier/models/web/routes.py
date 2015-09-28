@@ -579,9 +579,9 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
     content_hash = Nilsimsa(data['body']).hexdigest()
     store_id = '%d-%s-%s' % (last_modified, doc_id, content_hash)
 
-    kvlclient.setup_namespace({'documents': (str,), 'highlights': (str,)})
+    kvlclient.setup_namespace({'files': (str,), 'highlights': (str,)})
     if data['store'] is False:
-        kvlclient.delete('documents', (store_id,))
+        kvlclient.delete('files', (store_id,))
         kvlclient.delete('highlights', (store_id,))
         logger.info('cleared store for %r', store_id)
     else: # storing is allowed
@@ -601,8 +601,8 @@ def v1_highlights_post(request, response, kvlclient, tfidf,
 
         delay = len(data['body']) / 5000 # one second per 5KB
         if delay > min_delay:
-            # store the data in `documents` table
-            kvlclient.put('documents', ((store_id,), json.dumps(data)))
+            # store the data in `files` table
+            kvlclient.put('files', ((store_id,), json.dumps(data)))
             payload = {
                 'state': HIGHLIGHTS_PENDING,
                 'id': store_id,
@@ -637,8 +637,8 @@ def highlights_worker(work_unit):
     with yakonfig.defaulted_config([coordinate, kvlayer, dblogger, web_conf],
                                    config=unitconf):
         store_id = work_unit.key
-        web_conf.kvlclient.setup_namespace({'documents': (str,), 'highlights': (str,)})
-        payload_strs = list(web_conf.kvlclient.get('documents', (store_id,)))
+        web_conf.kvlclient.setup_namespace({'files': (str,), 'highlights': (str,)})
+        payload_strs = list(web_conf.kvlclient.get('files', (store_id,)))
         if payload_strs and payload_strs[0][1]:
             payload_str = payload_strs[0][1]
             try:
