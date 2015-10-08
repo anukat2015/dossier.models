@@ -29,6 +29,7 @@ from streamcorpus_pipeline import cleanse
 from streamcorpus_pipeline._clean_html import uniform_html
 from streamcorpus_pipeline.offsets import char_offsets_to_xpaths
 import regex as re
+import requests
 
 import dblogger
 from dossier.fc import StringCounter, FeatureCollection
@@ -225,6 +226,51 @@ def new_folders(kvlclient, request):
     if 'annotator_id' in request.query:
         conf['owner'] = request.query['annotator_id']
     return Folders(kvlclient, **conf)
+
+
+@app.get('/dossier/v1/suggest/<query>', json=True)
+def v1_suggest_get(request, response, tfidf, query):
+    '''Gather suggestions from various engines and within this dossier
+    stack instance and filter/rank them before sending to requestor.
+
+    '''
+    config = yakonfig.get_global_config('dossier.models')
+    suggest_services = config.get('suggest_services', [])
+    session = requests.Session()
+    suggestions = []
+    logger.info('querying %d suggest_services', len(suggest_services))
+    for url in suggest_services:
+        try:
+            url = url % dict(query=query)
+        except Exception, exc:
+            logger.error('failed to insert query=%r into pattern: %r', query, url)
+            continue
+        try:
+            resp = session.get(url)
+        except Exception, exc:
+            logger.error('failed to retrieve %r', url)
+            continue
+        try:
+            results = resp.json()
+        except Exception, exc:
+            logger.error('failed to get JSON from: %r', 
+                         resp.content, exc_info=True)
+            continue
+        if not isinstance(results, list) or len(results) < 2:
+            logger.error('got other than list of length at least two from service: %r --> %r',
+                         url, results)
+            continue
+        query_ack = results[0]
+        query_suggestions = results[1]
+        if not isinstance(query_suggestions, list):
+            logger.error('got other than list of query suggestions: %r --> %r',
+                         url, results)
+            continue
+        suggestions += query_suggestions
+        logger.info('%d suggestions from %r', len(query_suggestions), url)
+
+    logger.info('found %d suggestions for %r', len(suggestions), query)
+    return [query, suggestions]
 
 
 feature_pretty_names = [
